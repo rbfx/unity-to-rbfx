@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BuildModel": {
+      "commandName": "Project",
+      "commandLineArgs": "--output $(MSBuildProjectDirectory)/../../Editor/Model/"
+    }
+  }
+}

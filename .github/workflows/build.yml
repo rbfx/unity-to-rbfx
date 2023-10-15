@@ -1,0 +1,42 @@
+name: BuildUnityPackage
+
+on:
+  push:
+    branches: [ "master", "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 7.0.x
+
+    - name: Restore tools
+      run: dotnet tool restore
+
+    - name: Get version
+      run: dotnet tool run ezpipeline git-height-version -- -b 0.0.1 -v VERSION
+
+    - name: Update package version
+      run: npm version ${{ env.VERSION }} --no-git-tag-version
+
+    - name: Make package
+      run: npm pack .
+
+    - name: Publish package
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./io.rebelfork.unityexporter-*.tgz 
+        name: v${{ env.VERSION }}
+        tag_name: v${{ env.VERSION }}
+        token: ${{ secrets.GITHUB_TOKEN }}

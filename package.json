@@ -1,0 +1,11 @@
+{
+	"name": "io.rebelfork.unityexporter",
+	"version": "0.0.1",
+	"displayName": "Unity To RebelFork (rbfx) Exporter",
+	"description": "Export assets in RBFX file formats",
+	"unity": "2019.1",
+	"dependencies": {
+		"com.svermeulen.extenject": "0.0.0",
+		"com.unity.nuget.newtonsoft-json": "3.0.2"
+	}
+}
