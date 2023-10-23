@@ -21,5 +21,10 @@ namespace UnityToRebelFork.Editor
                 model.PSDefines.Add("PACKEDNORMAL");
         }
 
+        protected void MapDefaultTechnique(UnityEngine.Material material, MaterialModel model)
+        {
+            var transparent = material.renderQueue == (int)RenderQueue.Transparent;
+            model.Techniques.Add(new TechniqueModel() { Name = transparent ? "Techniques/LitTransparent.xml" : "Techniques/LitOpaque.xml" });
+        }
     }
 }

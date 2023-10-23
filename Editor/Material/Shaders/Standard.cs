@@ -2,6 +2,8 @@ namespace UnityToRebelFork.Editor.Shaders
 {
     public class StandardShaderAdapter
     {
+        public static readonly string ShaderName = "Standard";
+
         UnityEngine.Material material;
 
         public StandardShaderAdapter(UnityEngine.Material material)

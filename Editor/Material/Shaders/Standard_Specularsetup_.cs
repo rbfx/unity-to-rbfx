@@ -2,6 +2,8 @@ namespace UnityToRebelFork.Editor.Shaders
 {
     public class Standard_Specularsetup_ShaderAdapter
     {
+        public static readonly string ShaderName = "Standard (Specular setup)";
+
         UnityEngine.Material material;
 
         public Standard_Specularsetup_ShaderAdapter(UnityEngine.Material material)

@@ -20,9 +20,7 @@ namespace UnityToRebelFork.Editor
             var model = new MaterialModel();
 
             MapCommonParameters(material, model);
-
-            var transparent = material.renderQueue == (int)RenderQueue.Transparent;
-            model.Techniques.Add(new TechniqueModel() { Name = transparent ? "Techniques/LitTransparent.xml" : "Techniques/LitOpaque.xml" });
+            MapDefaultTechnique(material, model);
 
             var shaderArgs = new Shaders.Standard_Specularsetup_ShaderAdapter(material);
 

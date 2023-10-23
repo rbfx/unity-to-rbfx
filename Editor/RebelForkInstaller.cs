@@ -21,8 +21,10 @@ namespace UnityToRebelFork.Editor
             Container.BindInterfacesAndSelfTo<TextureExporter>().AsSingle();
             Container.BindInterfacesAndSelfTo<TextureRecipeExporter>().AsSingle();
 
+            Container.BindInterfacesAndSelfTo<MobileVertexLitShaderMapping>().AsSingle();
             Container.BindInterfacesAndSelfTo<StandardShaderMapping>().AsSingle();
             Container.BindInterfacesAndSelfTo<StandardSpecularShaderMapping>().AsSingle();
+            Container.BindInterfacesAndSelfTo<DefaultShaderMapping>().AsSingle();
 
             Container.Bind<NameCollisionResolver>().AsCached();
             Container.Bind<PrefabVisitor>().AsTransient();

@@ -122,6 +122,13 @@ namespace UnityToRebelFork.Editor
 
             GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Standard"));
             GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Standard (Specular setup)"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Universal Render Pipeline/Lit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Universal Render Pipeline/Complex Lit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Universal Render Pipeline/Simple Lit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Universal Render Pipeline/Unlit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("HDRP/Lit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("HDRP/Unlit"));
+            GenerateShaderHelper(exportFolder, UnityEngine.Shader.Find("Mobile/VertexLit"));
         }
 
         private static void GenerateShaderHelper(string exportFolder, UnityEngine.Shader shader)
@@ -155,6 +162,8 @@ namespace UnityToRebelFork.Editor
                     writer.WriteLine("{");
                     writer.WriteLine($"    public class {name}ShaderAdapter");
                     writer.WriteLine("    {");
+                    writer.WriteLine($"        public static readonly string ShaderName = \"{shader.name}\";");
+                    writer.WriteLine();
                     writer.WriteLine("        UnityEngine.Material material;");
                     writer.WriteLine();
                     writer.WriteLine($"        public {name}ShaderAdapter(UnityEngine.Material material)");

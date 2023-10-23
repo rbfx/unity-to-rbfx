@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityToRebelFork.Editor.Shaders;
 
 namespace UnityToRebelFork.Editor
 {
@@ -11,7 +12,7 @@ namespace UnityToRebelFork.Editor
 
         public bool CanMap(UnityEngine.Shader shader)
         {
-            if (shader.name == "Standard")
+            if (shader.name == StandardShaderAdapter.ShaderName)
                 return true;
             return false;
         }
@@ -21,9 +22,7 @@ namespace UnityToRebelFork.Editor
             var model = new MaterialModel();
 
             MapCommonParameters(material, model);
-
-            var transparent = material.renderQueue == (int)RenderQueue.Transparent;
-            model.Techniques.Add(new TechniqueModel(){Name = transparent ? "Techniques/LitTransparent.xml" : "Techniques/LitOpaque.xml" });
+            MapDefaultTechnique(material, model);
 
             var shaderArgs = new Shaders.StandardShaderAdapter(material);
 
