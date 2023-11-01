@@ -1,7 +1,7 @@
 using UnityEngine;
 using System;
+using System.Collections;
 using System.IO;
-using System.Linq;
 using System.Text;
 using Zenject;
 using UnityEditor;
@@ -11,15 +11,67 @@ using UnityEditor.SceneManagement;
 
 namespace UnityToRebelFork.Editor
 {
+
+    public class ExportRedirector: IExporter
+    {
+        private readonly ExportOrchestrator _orchestrator;
+
+        public ExportRedirector(ExportOrchestrator orchestrator)
+        {
+            _orchestrator = orchestrator;
+        }
+        public bool CanExport(object asset)
+        {
+            return true;
+        }
+
+        public string EvaluateResourcePath(object asset)
+        {
+            if (asset == null)
+                return null;
+
+            return asset.ToString();
+        }
+
+        public IEnumerable Export(object asset)
+        {
+            if (asset is string path)
+            {
+                yield return path;
+
+                if (!System.IO.File.Exists(path) && !System.IO.Directory.Exists(path))
+                    yield break;
+
+                var attrs = System.IO.File.GetAttributes(path);
+                if (attrs.HasFlag(FileAttributes.Directory))
+                {
+                    foreach (var guid in AssetDatabase.FindAssets("", new[] { path }))
+                        _orchestrator.ScheduleExport(AssetDatabase.GUIDToAssetPath(guid), this);
+                }
+                else
+                {
+                    foreach (var subAsset in AssetDatabase.LoadAllAssetsAtPath(path))
+                    {
+                        _orchestrator.ScheduleExport(subAsset);
+                    }
+                }
+            }
+        }
+    }
     [CustomEditor(typeof(ExportSettings))]
     public class ExportSettingsEditor : UnityEditor.Editor
     {
         private DiContainer _container;
 
+        public bool InspectorMode { get; set; } = true;
+
         public override void OnInspectorGUI()
         {
             base.OnInspectorGUI();
             var script = (ExportSettings)target;
+
+            if (script == null)
+                return;
 
             var hasPath = !string.IsNullOrWhiteSpace(script.path);
 
@@ -34,22 +86,32 @@ namespace UnityToRebelFork.Editor
                 EditorUtility.RevealInFinder(script.path);
             }
 
-            //var selected = Selection.assetGUIDs;
-            //if (selected.Length > 0)
-            //{
-            //    string selectedStr;
-            //    if (selected.Length == 1)
-            //    {
-            //        selectedStr = AssetDatabase.GUIDToAssetPath(selected[0]);
-            //    }
-            //    else
-            //    {
-            //        selectedStr = $"{selected.Length} assets: {AssetDatabase.GUIDToAssetPath(selected[0])}, ...";
-            //    }
-            //    if (GUILayout.Button($"Export {selectedStr}", GUILayout.Height(40)))
-            //    {
-            //    }
-            //}
+            if (!InspectorMode)
+            {
+                var selected = Selection.assetGUIDs;
+                if (selected.Length > 0)
+                {
+                    string selectedStr;
+                    if (selected.Length == 1)
+                    {
+                        selectedStr = AssetDatabase.GUIDToAssetPath(selected[0]);
+                    }
+                    else
+                    {
+                        selectedStr = $"{selected.Length} assets: {AssetDatabase.GUIDToAssetPath(selected[0])}, ...";
+                    }
+                    if (GUILayout.Button($"Export {selectedStr}", GUILayout.Height(40)))
+                    {
+                        foreach (var selectedGuid in selected)
+                        {
+                            _container = new DiContainer(new[] { StaticContext.Container });
+                            RebelForkInstaller.Install(_container, script, new ExportContext(SceneManager.GetActiveScene()));
+                            var orchestrator = _container.Resolve<ExportOrchestrator>();
+                            orchestrator.ScheduleExport(AssetDatabase.GUIDToAssetPath(selectedGuid), new ExportRedirector(orchestrator));
+                        }
+                    }
+                }
+            }
             //else
             {
                 var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
@@ -81,7 +143,7 @@ namespace UnityToRebelFork.Editor
             EditorGUI.EndDisabledGroup();
         }
 
-        private string PickFolder(string path)
+        private static string PickFolder(string path)
         {
             for (;;)
             {

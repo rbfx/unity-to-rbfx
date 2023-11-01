@@ -12,6 +12,7 @@ namespace UnityToRebelFork.Editor
             Container.BindInstance(settings).AsSingle();
             Container.BindInstance(context).AsSingle();
             //Container.Bind<IExporter>().To(_=>_.AllTypes().DerivingFrom<IExporter>().FromThisAssembly()).AsCached();
+            Container.BindInterfacesAndSelfTo<AnimationExporter>().AsSingle();
             Container.BindInterfacesAndSelfTo<MeshExporter>().AsSingle();
             Container.BindInterfacesAndSelfTo<MeshReferenceExporter>().AsSingle();
             Container.BindInterfacesAndSelfTo<MaterialExporter>().AsSingle();
