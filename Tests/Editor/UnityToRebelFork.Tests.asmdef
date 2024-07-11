@@ -1,0 +1,22 @@
+{
+    "name": "UnityToRebelFork.Tests",
+    "rootNamespace": "",
+    "references": [
+        "UnityToRebelFork",
+        "UnityToRebelFork.Editor"
+    ],
+    "optionalUnityReferences": [
+      "TestAssemblies"
+    ],
+    "includePlatforms": [
+      "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

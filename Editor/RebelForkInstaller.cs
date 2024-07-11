@@ -26,6 +26,7 @@ namespace UnityToRebelFork.Editor
             Container.BindInterfacesAndSelfTo<StandardShaderMapping>().AsSingle();
             Container.BindInterfacesAndSelfTo<StandardSpecularShaderMapping>().AsSingle();
             Container.BindInterfacesAndSelfTo<DefaultShaderMapping>().AsSingle();
+            Container.BindInterfacesAndSelfTo<LegacyDiffuseShaderMapping>().AsSingle();
 
             Container.Bind<NameCollisionResolver>().AsCached();
             Container.Bind<PrefabVisitor>().AsTransient();

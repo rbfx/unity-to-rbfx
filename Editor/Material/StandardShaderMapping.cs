@@ -1,6 +1,4 @@
-using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityToRebelFork.Editor.Shaders;
 
 namespace UnityToRebelFork.Editor
