@@ -35,7 +35,7 @@ namespace UnityToRebelFork.Editor
         {
             new TextureProcessor().ProcessAndSaveTexture(asset,
                 "Hidden/UnityToRebelFork/Copy", Settings.ResolveResourceFileName(EvaluateResourcePath(asset)),
-                textureImporter?.GetAutomaticFormat("Standalone") != TextureImporterFormat.DXT1, new Dictionary<string, float>
+                hasAlpha: textureImporter?.GetAutomaticFormat("Standalone") != TextureImporterFormat.DXT1, shaderArgs: new Dictionary<string, float>
                 {
                     {"_GammaInput",( PlayerSettings.colorSpace == UnityEngine.ColorSpace.Linear)?0.0f:1.0f},
                     {"_GammaOutput",1.0f},
@@ -48,7 +48,7 @@ namespace UnityToRebelFork.Editor
                 Settings.PackNormals
                     ? "Hidden/UnityToRebelFork/DecodeNormalMapPackedNormal"
                     : "Hidden/UnityToRebelFork/DecodeNormalMap",
-                Settings.ResolveResourceFileName(EvaluateResourcePath(asset)));
+                Settings.ResolveResourceFileName(EvaluateResourcePath(asset)), compress: Settings.PackNormals);
         }
     }
 }

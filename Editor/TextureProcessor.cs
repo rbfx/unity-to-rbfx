@@ -14,16 +14,16 @@ namespace UnityToRebelFork.Editor
     public class TextureProcessor
     {
         public void ProcessAndSaveTexture(UnityEngine.Texture sourceTexture, string shaderName, string fullOutputPath,
-            bool hasAlpha = true, Dictionary<string, float> shaderArgs = null)
+            bool hasAlpha = true, bool compress = true, Dictionary<string, float> shaderArgs = null)
         {
-            ProcessAndSaveTexture(sourceTexture, UnityEngine.Shader.Find(shaderName), fullOutputPath, hasAlpha, shaderArgs);
+            ProcessAndSaveTexture(sourceTexture, UnityEngine.Shader.Find(shaderName), fullOutputPath, hasAlpha, compress, shaderArgs);
         }
         public void ProcessTexture(UnityEngine.Texture sourceTexture, string shaderName, Action<UnityEngine.Texture2D> callback)
         {
             ProcessTexture(sourceTexture, UnityEngine.Shader.Find(shaderName), callback);
         }
         public void ProcessAndSaveTexture(UnityEngine.Texture sourceTexture, UnityEngine.Shader shader, string fullOutputPath,
-            bool hasAlpha = true, Dictionary<string, float> shaderArgs = null)
+            bool hasAlpha = true, bool compress = true, Dictionary<string, float> shaderArgs = null)
         {
             UnityEngine.Material material = null;
 
@@ -40,7 +40,7 @@ namespace UnityToRebelFork.Editor
                         }
                     }
                 }
-                ProcessAndSaveTexture(sourceTexture, material, fullOutputPath, hasAlpha);
+                ProcessAndSaveTexture(sourceTexture, material, fullOutputPath, hasAlpha: hasAlpha, compress: compress);
             }
             finally
             {
@@ -64,10 +64,10 @@ namespace UnityToRebelFork.Editor
         }
 
         public void ProcessAndSaveTexture(UnityEngine.Texture sourceTexture, UnityEngine.Material material, string fullOutputPath,
-            bool hasAlpha = true)
+            bool hasAlpha = true, bool compress = true)
         {
             ProcessAndSaveTexture(sourceTexture, sourceTexture.width, sourceTexture.height, material, fullOutputPath,
-                hasAlpha);
+                hasAlpha: hasAlpha, compress: compress);
         }
 
         public void ProcessTexture(UnityEngine.Texture sourceTexture, UnityEngine.Material material, Action<UnityEngine.Texture2D> callback)
@@ -164,13 +164,13 @@ namespace UnityToRebelFork.Editor
         }
 
         public void ProcessAndSaveTexture(UnityEngine.Texture sourceTexture, int width, int height, UnityEngine.Material material,
-            string fullOutputPath, bool hasAlpha = true)
+            string fullOutputPath, bool hasAlpha = true, bool compress = true)
         {
             ProcessTexture(sourceTexture, width, height, material,
-                texture => SaveTexture(texture, fullOutputPath, hasAlpha));
+                texture => SaveTexture(texture, fullOutputPath, hasAlpha:hasAlpha, compress:compress));
         }
 
-        public void SaveTexture(UnityEngine.Texture2D texture, string fullOutputPath, bool hasAlpha = true)
+        public void SaveTexture(UnityEngine.Texture2D texture, string fullOutputPath, bool hasAlpha = true, bool compress = true)
         {
             if (string.IsNullOrWhiteSpace(fullOutputPath))
                 return;
@@ -197,7 +197,7 @@ namespace UnityToRebelFork.Editor
                     WriteAllBytes(fullOutputPath, exr);
                     break;
                 case ".dds":
-                    DDS.SaveAsRgbaDds(texture, fullOutputPath, hasAlpha);
+                    DDS.SaveAsRgbaDds(texture, fullOutputPath, hasAlpha: hasAlpha, compress: compress);
                     break;
                 default:
                     throw new NotImplementedException("Not implemented texture file type " + ext);
@@ -212,15 +212,16 @@ namespace UnityToRebelFork.Editor
             }
         }
     }
+
     public class DDS
     {
-        public static void SaveAsRgbaDds(UnityEngine.Texture2D texture, string fileName, bool hasAlpha = true, bool dither = false)
+        public static void SaveAsRgbaDds(UnityEngine.Texture2D texture, string fileName, bool hasAlpha = true, bool compress = true, bool dither = false)
         {
             using (var fileStream = System.IO.File.Open(fileName, FileMode.Create, FileAccess.Write, FileShare.Read))
             {
                 using (var binaryWriter = new BinaryWriter(fileStream))
                 {
-                    var compress = (0 == (texture.width % 4)) && (0 == (texture.height % 4));
+                    compress = compress && (0 == (texture.width % 4)) && (0 == (texture.height % 4));
                     if (compress)
                     {
                         WriteCompressedHeader(binaryWriter, texture.width, texture.height, texture.mipmapCount, false,

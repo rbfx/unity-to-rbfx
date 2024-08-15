@@ -86,7 +86,7 @@ namespace UnityToRebelFork.Editor
                 EditorUtility.RevealInFinder(script.path);
             }
 
-            if (!string.IsNullOrEmpty(script.path) && !script.path.EndsWith("Data"))
+            if (!string.IsNullOrEmpty(script.path) && !script.path.EndsWith("Data") && !script.path.EndsWith("Data/") && !script.path.EndsWith("Data\\"))
             {
                 EditorGUILayout.HelpBox("The path doesn't end with Data. Are you sure you've picked a correct path to a Data folder?", MessageType.Warning);
             }
