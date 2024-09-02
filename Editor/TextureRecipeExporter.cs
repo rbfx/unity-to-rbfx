@@ -1,16 +1,14 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using UnityEditor;
 using UnityEngine;
 
 namespace UnityToRebelFork.Editor
 {
     public class TextureRecipeExporter : ExporterBase<TextureRecipe>
     {
-        public TextureRecipeExporter()
+        public TextureRecipeExporter(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

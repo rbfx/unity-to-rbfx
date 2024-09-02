@@ -5,7 +5,7 @@ namespace UnityToRebelFork.Editor
 {
     public class MeshReferenceExporter : ExporterBase<MeshReference>
     {
-        public MeshReferenceExporter()
+        public MeshReferenceExporter(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

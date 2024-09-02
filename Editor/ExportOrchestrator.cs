@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using UnityEditor;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
@@ -12,7 +12,6 @@ namespace UnityToRebelFork.Editor
         /// <summary>
         /// Available exporters.
         /// </summary>
-        [Inject]
         private readonly IExporter[] exporters;
 
         /// <summary>
@@ -52,8 +51,9 @@ namespace UnityToRebelFork.Editor
         private readonly EditorApplication.CallbackFunction callback;
 
 
-        public ExportOrchestrator()
+        public ExportOrchestrator(IEnumerable<IExporter> exporters)
         {
+            this.exporters = exporters.ToArray();
             callback = ProcessQueue;
         }
 

@@ -10,7 +10,7 @@ namespace UnityToRebelFork.Editor
 {
     public class AnimationExporter : ExporterBase<UnityEngine.AnimationClip>
     {
-        public AnimationExporter()
+        public AnimationExporter(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

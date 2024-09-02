@@ -1,33 +1,37 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
     public class PrefabVisitor
     {
-        [Inject]
-        private readonly ExportOrchestrator _orchestrator;
+        private readonly Lazy<ExportOrchestrator> _orchestrator;
 
-        [Inject]
-        private readonly PrefabExporter prefabExporter;
+        //private readonly PrefabExporter prefabExporter;
 
-        [Inject]
-        private readonly MeshExporter meshExporter;
+        //private readonly MeshExporter meshExporter;
 
-        [Inject]
-        private readonly MaterialExporter materialExporter;
+        //private readonly MaterialExporter materialExporter;
 
-        [Inject]
-        private readonly TextureExporter textureExporter;
+        //private readonly TextureExporter textureExporter;
 
         /// <summary>
         /// Unique Id counter.
         /// </summary>
         private int uniqueIdCounter = 0;
+
+        public PrefabVisitor(Lazy<ExportOrchestrator> _orchestrator) //, PrefabExporter prefabExporter, MeshExporter meshExporter,MaterialExporter materialExporter,TextureExporter textureExporter)
+        {
+            this._orchestrator = _orchestrator;
+            //this.prefabExporter = prefabExporter;
+            //this.meshExporter = meshExporter;
+            //this.materialExporter = materialExporter;
+            //this.textureExporter = textureExporter;
+        }
 
         private static HashSet<string> prefabPropertiesToIgnore = new HashSet<string>()
         {
@@ -38,10 +42,6 @@ namespace UnityToRebelFork.Editor
         };
 
         private HashSet<UnityEngine.Component> skipList = new HashSet<UnityEngine.Component>();
-
-        public PrefabVisitor()
-        {
-        }
 
         public Scene Visit(UnityEngine.SceneManagement.Scene unityScene)
         {
@@ -94,7 +94,7 @@ namespace UnityToRebelFork.Editor
                             {
                                 node.Components.Add(new PrefabReference()
                                 {
-                                    Prefab = new ResourceRef(nameof(PrefabResource), _orchestrator.ScheduleExport(originalSource))
+                                    Prefab = new ResourceRef(nameof(PrefabResource), _orchestrator.Value.ScheduleExport(originalSource))
                                 });
                                 return node;
                             }
@@ -168,8 +168,8 @@ namespace UnityToRebelFork.Editor
         private void VisitSkinnedMeshRenderer(Node node, UnityEngine.SkinnedMeshRenderer skinnedMeshRenderer)
         {
             var component = new AnimatedModel();
-            component.Model = ResourceRef.Create<Model>(_orchestrator.ScheduleExport(skinnedMeshRenderer.sharedMesh));
-            component.Material = ResourceRefList.Create<Material>(skinnedMeshRenderer.sharedMaterials.Select(_ => _orchestrator.ScheduleExport(_)));
+            component.Model = ResourceRef.Create<Model>(_orchestrator.Value.ScheduleExport(skinnedMeshRenderer.sharedMesh));
+            component.Material = ResourceRefList.Create<Material>(skinnedMeshRenderer.sharedMaterials.Select(_ => _orchestrator.Value.ScheduleExport(_)));
             component.CastShadows = skinnedMeshRenderer.shadowCastingMode != ShadowCastingMode.Off;
             node.Components.Add(component);
         }
@@ -178,8 +178,8 @@ namespace UnityToRebelFork.Editor
         {
             var component = new StaticModel();
             var meshFilter = meshRenderer.gameObject.GetComponent<MeshFilter>();
-            component.Model = ResourceRef.Create<Model>(_orchestrator.ScheduleExport(meshFilter?.sharedMesh));
-            component.Material = ResourceRefList.Create<Material>(meshRenderer.sharedMaterials.Select(_=>_orchestrator.ScheduleExport(_)));
+            component.Model = ResourceRef.Create<Model>(_orchestrator.Value.ScheduleExport(meshFilter?.sharedMesh));
+            component.Material = ResourceRefList.Create<Material>(meshRenderer.sharedMaterials.Select(_=>_orchestrator.Value.ScheduleExport(_)));
             component.CastShadows = meshRenderer.shadowCastingMode != ShadowCastingMode.Off;
             node.Components.Add(component);
         }
@@ -211,7 +211,7 @@ namespace UnityToRebelFork.Editor
 
             if (light.cookie != null)
             {
-                component.LightShapeTexture = ResourceRef.Create<Texture2D>(_orchestrator.ScheduleExport(light.cookie));
+                component.LightShapeTexture = ResourceRef.Create<Texture2D>(_orchestrator.Value.ScheduleExport(light.cookie));
             }
         }
 
@@ -301,8 +301,8 @@ namespace UnityToRebelFork.Editor
         private void VisitLODGroup(Node node, LODGroup lodGroup)
         {
             var component = new StaticModel();
-            var meshRef = new MeshReference(lodGroup, _orchestrator);
-            component.Model = ResourceRef.Create<Model>(_orchestrator.ScheduleExport(meshRef));
+            var meshRef = new MeshReference(lodGroup, _orchestrator.Value);
+            component.Model = ResourceRef.Create<Model>(_orchestrator.Value.ScheduleExport(meshRef));
             component.Material = ResourceRefList.Create<Material>(meshRef.Materials.Select(_=>_.Material));
             foreach (var lod in lodGroup.GetLODs())
             {
@@ -351,7 +351,7 @@ namespace UnityToRebelFork.Editor
         {
             var component = new CollisionShape();
             component.ShapeType = ShapeType.TriangleMesh;
-            component.Model = ResourceRef.Create<Model>(_orchestrator.ScheduleExport(meshCollider.sharedMesh));
+            component.Model = ResourceRef.Create<Model>(_orchestrator.Value.ScheduleExport(meshCollider.sharedMesh));
             return component;
         }
 

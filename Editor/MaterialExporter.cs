@@ -1,12 +1,8 @@
-using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Xml.Linq;
-using UnityEditor;
-using UnityEngine;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
@@ -14,7 +10,7 @@ namespace UnityToRebelFork.Editor
     {
         private IShaderMapping[] shaderMappings;
 
-        public MaterialExporter(IShaderMapping[] shaderMappings)
+        public MaterialExporter(IEnumerable<IShaderMapping> shaderMappings, NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
             this.shaderMappings = shaderMappings.OrderBy(_=>_.Priority).ToArray();
         }

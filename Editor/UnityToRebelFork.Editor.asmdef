@@ -2,8 +2,7 @@
     "name": "UnityToRebelFork.Editor",
     "rootNamespace": "",
     "references": [
-        "UnityToRebelFork",
-        "Zenject"
+        "UnityToRebelFork"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

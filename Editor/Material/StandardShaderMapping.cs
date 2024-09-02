@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityToRebelFork.Editor.Shaders;
 
@@ -7,6 +8,10 @@ namespace UnityToRebelFork.Editor
     {
 
         public int Priority { get; } = 0;
+
+        public StandardShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        {
+        }
 
         public bool CanMap(UnityEngine.Shader shader)
         {
@@ -32,13 +37,13 @@ namespace UnityToRebelFork.Editor
             model.Roughness = 1.0f-shaderArgs._Glossiness;
 
             if(shaderArgs._BumpMap != null)
-                model.Normal = orchestrator.ScheduleExport(shaderArgs._BumpMap);
+                model.Normal = orchestrator.Value.ScheduleExport(shaderArgs._BumpMap);
 
             if (shaderArgs._EmissionMap != null)
-                model.Emission = orchestrator.ScheduleExport(shaderArgs._EmissionMap);
+                model.Emission = orchestrator.Value.ScheduleExport(shaderArgs._EmissionMap);
 
             if (shaderArgs._MainTex != null)
-                model.Albedo = orchestrator.ScheduleExport(shaderArgs._MainTex);
+                model.Albedo = orchestrator.Value.ScheduleExport(shaderArgs._MainTex);
 
             if (shaderArgs._OcclusionMap != null || shaderArgs._MetallicGlossMap != null)
             {
@@ -76,7 +81,7 @@ namespace UnityToRebelFork.Editor
                     recipe.AMask = new Vector4(0.299f, 0.587f, 0.114f, 0.0f);
                 }
 
-                model.Properties = orchestrator.ScheduleExport(recipe);
+                model.Properties = orchestrator.Value.ScheduleExport(recipe);
             }
 
             return model;

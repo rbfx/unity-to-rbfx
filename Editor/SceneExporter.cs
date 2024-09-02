@@ -2,17 +2,16 @@ using System.Collections;
 using System.IO;
 using System.Text;
 using System.Xml.Linq;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
     public class SceneExporter: ExporterBase<UnityEngine.SceneManagement.Scene>
     {
-        [Inject]
         private readonly PrefabVisitor prefabVisitor;
 
-        public SceneExporter()
+        public SceneExporter(PrefabVisitor prefabVisitor, NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings):base(nameCollisionResolver, context, settings)
         {
+            this.prefabVisitor = prefabVisitor;
         }
 
         /// <inheritdoc />

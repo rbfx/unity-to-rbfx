@@ -5,7 +5,6 @@
 	"description": "Export assets in RBFX file formats",
 	"unity": "2019.1",
 	"dependencies": {
-		"com.svermeulen.extenject": "0.0.0",
 		"com.unity.nuget.newtonsoft-json": "3.0.2"
 	}
 }

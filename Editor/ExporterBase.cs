@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using System.Text;
 using UnityEditor;
-using UnityEngine;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
@@ -17,9 +15,16 @@ namespace UnityToRebelFork.Editor
             '\x3C', '\x3E', '\x7C', ':', '*', '?', '\\', '/'
         };
 
-        [Inject] protected NameCollisionResolver nameCollisionResolver;
-        [Inject] protected readonly ExportContext context;
-        [Inject] protected readonly ExportSettings _settings;
+        protected NameCollisionResolver nameCollisionResolver;
+        protected readonly ExportContext context;
+        protected readonly ExportSettings _settings;
+
+        public ExporterBase(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings)
+        {
+            this.nameCollisionResolver = nameCollisionResolver;
+            this.context = context;
+            this._settings = settings;
+        }
 
         /// <summary>
         /// Export settings.
@@ -148,7 +153,7 @@ namespace UnityToRebelFork.Editor
         /// Create base exporter.
         /// </summary>
         /// <param name="settings">Export settings.</param>
-        public ExporterBase()
+        public ExporterBase(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

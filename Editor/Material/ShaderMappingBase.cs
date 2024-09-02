@@ -1,13 +1,19 @@
+using System;
 using UnityEngine.Rendering;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
     public class ShaderMappingBase
     {
-        [Inject] protected ExportOrchestrator orchestrator;
+        protected Lazy<ExportOrchestrator> orchestrator;
 
-        [Inject] protected ExportSettings settings;
+        protected ExportSettings settings;
+
+        public ShaderMappingBase(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings)
+        {
+            this.orchestrator = orchestrator;
+            this.settings = settings;
+        }
 
         protected void MapCommonParameters(UnityEngine.Material material, MaterialModel model)
         {

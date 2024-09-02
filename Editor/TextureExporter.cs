@@ -6,7 +6,7 @@ namespace UnityToRebelFork.Editor
 {
     public class TextureExporter: ExporterBase<UnityEngine.Texture>
     {
-        public TextureExporter()
+        public TextureExporter(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

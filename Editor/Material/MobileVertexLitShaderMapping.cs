@@ -1,4 +1,4 @@
-using UnityEngine.Rendering;
+using System;
 using UnityToRebelFork.Editor.Shaders.Mobile;
 
 namespace UnityToRebelFork.Editor
@@ -6,6 +6,10 @@ namespace UnityToRebelFork.Editor
     public class MobileVertexLitShaderMapping : ShaderMappingBase, IShaderMapping
     {
         public int Priority { get; } = 0;
+
+        public MobileVertexLitShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        {
+        }
 
         public bool CanMap(UnityEngine.Shader shader)
         {

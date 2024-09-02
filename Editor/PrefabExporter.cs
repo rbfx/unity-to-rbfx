@@ -3,17 +3,16 @@ using System.IO;
 using System.Text;
 using System.Xml.Linq;
 using UnityEngine;
-using Zenject;
 
 namespace UnityToRebelFork.Editor
 {
     public class PrefabExporter: ExporterBase<GameObject>
     {
-        [Inject]
         private readonly PrefabVisitor prefabVisitor;
 
-        public PrefabExporter()
+        public PrefabExporter(PrefabVisitor prefabVisitor, NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
+            this.prefabVisitor = prefabVisitor;
         }
 
         /// <inheritdoc />

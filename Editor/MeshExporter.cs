@@ -1,7 +1,5 @@
 using System.Collections;
 using System.IO;
-using System.Text;
-using System.Xml.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,7 +7,7 @@ namespace UnityToRebelFork.Editor
 {
     public class MeshExporter: ExporterBase<Mesh>
     {
-        public MeshExporter()
+        public MeshExporter(NameCollisionResolver nameCollisionResolver, ExportContext context, ExportSettings settings) : base(nameCollisionResolver, context, settings)
         {
         }
 

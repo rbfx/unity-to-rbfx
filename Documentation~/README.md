@@ -7,9 +7,7 @@ Here is something you should read or watch on YouTube before proceeding:
 
 ## Dependencies
 
-The project has Zenject as a dependency. To find out how to install Zenject you can watch this video:
-
-[![Theory & Installation | Learning Zenject [1]](Images/Zenject.jpg)](https://youtu.be/6tn8pMQuxEk?si=kLrbyQtg9wD1t2cZ)
+The project has LightInject as a embedded dependency.
 
 ## Installation
 

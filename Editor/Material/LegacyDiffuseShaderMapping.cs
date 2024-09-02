@@ -1,8 +1,14 @@
+using System;
+
 namespace UnityToRebelFork.Editor
 {
     public class LegacyDiffuseShaderMapping : ShaderMappingBase, IShaderMapping
     {
         public int Priority { get; } = 0;
+
+        public LegacyDiffuseShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        {
+        }
 
         public bool CanMap(UnityEngine.Shader shader)
         {
@@ -23,10 +29,9 @@ namespace UnityToRebelFork.Editor
             model.MatDiffColor = shaderArgs._Color;
 
             if (shaderArgs._MainTex != null)
-                model.Albedo = orchestrator.ScheduleExport(shaderArgs._MainTex);
+                model.Albedo = orchestrator.Value.ScheduleExport(shaderArgs._MainTex);
 
             return model;
         }
-
     }
 }

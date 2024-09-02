@@ -3,7 +3,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Text;
-using Zenject;
+using Rbfx.LightInject;
 using UnityEditor;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -61,7 +61,7 @@ namespace UnityToRebelFork.Editor
     [CustomEditor(typeof(ExportSettings))]
     public class ExportSettingsEditor : UnityEditor.Editor
     {
-        private DiContainer _container;
+        private ServiceContainer _container;
 
         public bool InspectorMode { get; set; } = true;
 
@@ -109,9 +109,9 @@ namespace UnityToRebelFork.Editor
                     {
                         foreach (var selectedGuid in selected)
                         {
-                            _container = new DiContainer(new[] { StaticContext.Container });
+                            _container = new ();
                             RebelForkInstaller.Install(_container, script, new ExportContext(SceneManager.GetActiveScene()));
-                            var orchestrator = _container.Resolve<ExportOrchestrator>();
+                            var orchestrator = _container.GetInstance<ExportOrchestrator>();
                             orchestrator.ScheduleExport(AssetDatabase.GUIDToAssetPath(selectedGuid), new ExportRedirector(orchestrator));
                         }
                     }
@@ -125,10 +125,10 @@ namespace UnityToRebelFork.Editor
                 {
                     if (GUILayout.Button($"Export Prefab ({Path.GetFileName(prefabStage.prefabAssetPath)})", GUILayout.Height(40)))
                     {
-                        _container = new DiContainer(new[] { StaticContext.Container });
+                        _container = new(new ContainerOptions { EnableVariance = true });
                         var prefabRootObject = AssetDatabase.LoadAssetAtPath<GameObject>(prefabStage.assetPath);
                         RebelForkInstaller.Install(_container, script, new ExportContext(prefabRootObject));
-                        var orchestrator = _container.Resolve<ExportOrchestrator>();
+                        var orchestrator = _container.GetInstance<ExportOrchestrator>();
                         orchestrator.ScheduleExport(prefabRootObject);
                     }
                 }
@@ -136,10 +136,10 @@ namespace UnityToRebelFork.Editor
                 {
                     if (GUILayout.Button($"Export Scene ({Path.GetFileName(SceneManager.GetActiveScene().path)})", GUILayout.Height(40)))
                     {
-                        _container = new DiContainer(new[] { StaticContext.Container });
+                        _container = new();
                         var activeScene = SceneManager.GetActiveScene();
                         RebelForkInstaller.Install(_container, script, new ExportContext(activeScene));
-                        var orchestrator = _container.Resolve<ExportOrchestrator>();
+                        var orchestrator = _container.GetInstance<ExportOrchestrator>();
                         orchestrator.ScheduleExport(activeScene);
                     }
                 }
