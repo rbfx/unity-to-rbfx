@@ -1,20 +1,19 @@
 using System;
 using UnityEngine;
-using UnityToRebelFork.Editor.Shaders;
 
 namespace UnityToRebelFork.Editor
 {
-    public class StandardSpecularShaderMapping : ShaderMappingBase, IShaderMapping
+    public class LitOpaqueShaderMapping : ShaderMappingBase, IShaderMapping
     {
         public int Priority { get; } = 0;
 
-        public StandardSpecularShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        public LitOpaqueShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
         {
         }
 
         public bool CanMap(UnityEngine.Shader shader)
         {
-            if (shader.name == Standard_Specularsetup_ShaderAdapter.ShaderName)
+            if (shader.name == Shaders.RBFX.LitOpaqueShaderAdapter.ShaderName)
                 return true;
             return false;
         }
@@ -26,14 +25,14 @@ namespace UnityToRebelFork.Editor
             MapCommonParameters(material, model);
             MapDefaultTechnique(material, model);
 
-            var shaderArgs = new Shaders.Standard_Specularsetup_ShaderAdapter(material);
+            var shaderArgs = new Shaders.RBFX.LitOpaqueShaderAdapter(material);
 
             model.MatDiffColor = shaderArgs._Color;
             model.MatEmissiveColor = (Vector4)shaderArgs._EmissionColor;
             model.NormalScale = shaderArgs._BumpScale;
             model.AlphaCutoff = shaderArgs._Cutoff;
-            //model.Metallic = shaderArgs._SpecColor;
-            model.Roughness = 1.0f - shaderArgs._Glossiness;
+            model.Metallic = shaderArgs._Metallic;
+            model.Roughness = shaderArgs._Roughness;
 
             if (shaderArgs._BumpMap != null)
                 model.Normal = orchestrator.Value.ScheduleExport(shaderArgs._BumpMap);
@@ -44,9 +43,8 @@ namespace UnityToRebelFork.Editor
             if (shaderArgs._MainTex != null)
                 model.Albedo = orchestrator.Value.ScheduleExport(shaderArgs._MainTex);
 
-            if (shaderArgs._OcclusionMap != null || shaderArgs._SpecGlossMap != null)
-            {
-            }
+            if (shaderArgs._PBRMap != null)
+                model.Properties = orchestrator.Value.ScheduleExport(shaderArgs._PBRMap);
 
             return model;
         }

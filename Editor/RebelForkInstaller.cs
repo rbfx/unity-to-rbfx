@@ -24,8 +24,9 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IShaderMapping, MobileVertexLitShaderMapping>(nameof(MobileVertexLitShaderMapping));
             container.RegisterSingleton<IShaderMapping, StandardShaderMapping>(nameof(StandardShaderMapping));
             container.RegisterSingleton<IShaderMapping, StandardSpecularShaderMapping>(nameof(StandardSpecularShaderMapping));
-            container.RegisterSingleton<IShaderMapping, DefaultShaderMapping>(nameof(DefaultShaderMapping));
             container.RegisterSingleton<IShaderMapping, LegacyDiffuseShaderMapping>(nameof(LegacyDiffuseShaderMapping));
+            container.RegisterSingleton<IShaderMapping, LitOpaqueShaderMapping>(nameof(LitOpaqueShaderMapping));
+            container.RegisterSingleton<IShaderMapping, DefaultShaderMapping>(nameof(DefaultShaderMapping));
 
             container.RegisterSingleton<NameCollisionResolver>();
             container.Register<PrefabVisitor>();
