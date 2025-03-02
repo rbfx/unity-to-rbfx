@@ -15,12 +15,17 @@ namespace UnityToRebelFork.Editor
             this.settings = settings;
         }
 
-        protected void MapCommonParameters(UnityEngine.Material material, MaterialModel model)
+        protected void MapCommonParameters(UnityEngine.Material material, MaterialModel model, bool normalMap)
         {
             var alphaTest = material.renderQueue == (int)RenderQueue.AlphaTest;
 
             model.PSDefines.Add("PBR");
             model.VSDefines.Add("PBR");
+            if (normalMap)
+            {
+                model.PSDefines.Add("NORMALMAP");
+                model.VSDefines.Add("NORMALMAP");
+            }
             if (alphaTest)
                 model.PSDefines.Add("ALPHAMASK");
             if (settings.PackNormals)

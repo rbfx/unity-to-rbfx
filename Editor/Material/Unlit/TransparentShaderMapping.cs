@@ -1,18 +1,19 @@
-using System;
+﻿using System;
 
-namespace UnityToRebelFork.Editor
+namespace UnityToRebelFork.Editor.Unlit
 {
-    public class LegacyDiffuseShaderMapping : ShaderMappingBase, IShaderMapping
+    public class TransparentShaderMapping : ShaderMappingBase, IShaderMapping
     {
+
         public int Priority { get; } = 0;
 
-        public LegacyDiffuseShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        public TransparentShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
         {
         }
 
         public bool CanMap(UnityEngine.Shader shader)
         {
-            if (shader.name == Shaders.LegacyShaders.DiffuseShaderAdapter.ShaderName)
+            if (shader.name == Shaders.Unlit.TransparentShaderAdapter.ShaderName)
                 return true;
             return false;
         }
@@ -21,12 +22,10 @@ namespace UnityToRebelFork.Editor
         {
             var model = new MaterialModel();
 
-            var shaderArgs = new Shaders.LegacyShaders.DiffuseShaderAdapter(material);
+            var shaderArgs = new Shaders.Unlit.TransparentShaderAdapter(material);
 
             MapCommonParameters(material, model, false);
-            MapDefaultTechnique(material, model);
-
-            model.MatDiffColor = shaderArgs._Color;
+            model.Techniques.Add(new TechniqueModel { Name = "Techniques/UnlitTransparent.xml" });
 
             if (shaderArgs._MainTex != null)
                 model.Albedo = orchestrator.Value.ScheduleExport(shaderArgs._MainTex);

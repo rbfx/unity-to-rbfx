@@ -1,4 +1,5 @@
 using Rbfx.LightInject;
+using UnityToRebelFork.Editor.Unlit;
 
 namespace UnityToRebelFork.Editor
 {
@@ -21,6 +22,8 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IExporter, TextureExporter>(nameof(TextureExporter));
             container.RegisterSingleton<IExporter, TextureRecipeExporter>(nameof(TextureRecipeExporter));
 
+            container.RegisterSingleton<IShaderMapping, TransparentShaderMapping>(nameof(TransparentShaderMapping));
+            container.RegisterSingleton<IShaderMapping, ToonShaderMapping>(nameof(ToonShaderMapping));
             container.RegisterSingleton<IShaderMapping, MobileVertexLitShaderMapping>(nameof(MobileVertexLitShaderMapping));
             container.RegisterSingleton<IShaderMapping, StandardShaderMapping>(nameof(StandardShaderMapping));
             container.RegisterSingleton<IShaderMapping, StandardSpecularShaderMapping>(nameof(StandardSpecularShaderMapping));

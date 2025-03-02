@@ -19,7 +19,7 @@ namespace UnityToRebelFork.Editor
         {
             var model = new MaterialModel();
 
-            MapCommonParameters(material, model);
+            MapCommonParameters(material, model, false);
             MapDefaultTechnique(material, model);
 
             return model;

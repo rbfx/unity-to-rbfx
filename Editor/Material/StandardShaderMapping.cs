@@ -24,10 +24,10 @@ namespace UnityToRebelFork.Editor
         {
             var model = new MaterialModel();
 
-            MapCommonParameters(material, model);
-            MapDefaultTechnique(material, model);
-
             var shaderArgs = new Shaders.StandardShaderAdapter(material);
+
+            MapCommonParameters(material, model, shaderArgs._BumpMap != null);
+            MapDefaultTechnique(material, model);
 
             model.MatDiffColor = shaderArgs._Color;
             model.MatEmissiveColor = (Vector4)shaderArgs._EmissionColor;

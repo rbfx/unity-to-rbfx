@@ -1,18 +1,20 @@
-using System;
+﻿using System;
+using UnityToRebelFork.Editor.Shaders;
 
 namespace UnityToRebelFork.Editor
 {
-    public class LegacyDiffuseShaderMapping : ShaderMappingBase, IShaderMapping
+    public class ToonShaderMapping : ShaderMappingBase, IShaderMapping
     {
+
         public int Priority { get; } = 0;
 
-        public LegacyDiffuseShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
+        public ToonShaderMapping(Lazy<ExportOrchestrator> orchestrator, ExportSettings settings) : base(orchestrator, settings)
         {
         }
 
         public bool CanMap(UnityEngine.Shader shader)
         {
-            if (shader.name == Shaders.LegacyShaders.DiffuseShaderAdapter.ShaderName)
+            if (shader.name == ToonShaderAdapter.ShaderName)
                 return true;
             return false;
         }
@@ -21,12 +23,13 @@ namespace UnityToRebelFork.Editor
         {
             var model = new MaterialModel();
 
-            var shaderArgs = new Shaders.LegacyShaders.DiffuseShaderAdapter(material);
+            var shaderArgs = new Shaders.ToonShaderAdapter(material);
 
             MapCommonParameters(material, model, false);
-            MapDefaultTechnique(material, model);
+            model.Techniques.Add(new TechniqueModel { Name = "Techniques/CelOpaque.xml" });
 
             model.MatDiffColor = shaderArgs._Color;
+            model.NormalScale = shaderArgs._BumpScale;
 
             if (shaderArgs._MainTex != null)
                 model.Albedo = orchestrator.Value.ScheduleExport(shaderArgs._MainTex);

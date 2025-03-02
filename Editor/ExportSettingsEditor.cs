@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
+using System.Linq;
 
 namespace UnityToRebelFork.Editor
 {
@@ -50,7 +51,15 @@ namespace UnityToRebelFork.Editor
                 }
                 else
                 {
-                    foreach (var subAsset in AssetDatabase.LoadAllAssetsAtPath(path))
+                    // Export main asset.
+                    var mainAsset = AssetDatabase.LoadMainAssetAtPath(path);
+                    _orchestrator.ScheduleExport(mainAsset);
+
+                    // Export all other assets except game objects.
+                    // Game objects are exported as prefabs and the root prefab game object should be at the main asset anyway.
+                    var allAssetsExceptGameObjects = AssetDatabase.LoadAllAssetsAtPath(path)
+                        .Where(asset=>asset.GetType() != typeof(GameObject) && asset!= mainAsset);
+                    foreach (var subAsset in allAssetsExceptGameObjects)
                     {
                         _orchestrator.ScheduleExport(subAsset);
                     }

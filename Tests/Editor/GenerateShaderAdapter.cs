@@ -74,7 +74,9 @@ namespace UnityToRebelFork
             adapterBuilder.AppendLine("    }");
             adapterBuilder.AppendLine("}");
 
-            TestContext.Out.WriteLine(adapterBuilder.ToString());
+            var geneatedCode = adapterBuilder.ToString();
+
+            TestContext.Out.WriteLine(geneatedCode);
         }
 
         [Test]

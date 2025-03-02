@@ -58,27 +58,28 @@ namespace UnityToRebelFork.Editor
                     byte mask = 0;
                     if (position != null)
                     {
-                        boneSamples = boneSamples.Merge(position, (s, pos) => new BoneSample() { Position = pos });
+                        boneSamples = boneSamples.Merge(position, (s, value) => new BoneSample() { Position = value });
                         mask |= 1;
                     }
 
                     if (rotation != null)
                     {
                         boneSamples = boneSamples.Merge(rotation,
-                            (s, rot) => new BoneSample { Position = s.Position, Rotation = rot });
+                            (s, value) => new BoneSample { Position = s.Position, Rotation = value });
                         mask |= 2;
                     }
 
                     if (scale != null)
                     {
                         boneSamples = boneSamples.Merge(scale,
-                            (s, pos) => new BoneSample()
-                                { Position = s.Position, Rotation = s.Rotation, Scale = s.Scale });
+                            (s, value) => new BoneSample()
+                                { Position = s.Position, Rotation = s.Rotation, Scale = value });
                         mask |= 4;
                     }
 
+                    var samples = boneSamples.ToList();
                     boneTracks.Add(new BoneAnimationTrack()
-                        { BoneName = objectTransforms.Key, Mask = mask, Samples = boneSamples.ToList() });
+                        { BoneName = objectTransforms.Key, Mask = mask, Samples = samples });
                 }
             }
 
