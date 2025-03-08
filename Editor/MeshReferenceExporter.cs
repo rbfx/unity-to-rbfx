@@ -24,7 +24,11 @@ namespace UnityToRebelFork.Editor
         {
             yield return "LOD group";
 
-            using (var stream = _settings.CreateFile(EvaluateResourcePath(asset)))
+            var path = EvaluateResourcePath(asset);
+            if (string.IsNullOrWhiteSpace(path))
+                yield break;
+
+            using (var stream = _settings.CreateFile(path))
             {
                 using (var writer = new BinaryWriter(stream))
                 {

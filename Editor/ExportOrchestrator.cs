@@ -84,8 +84,12 @@ namespace UnityToRebelFork.Editor
 
         public string ScheduleExport(object asset, IExporter exporter)
         {
-            ScheduleForegroundTask(() => exporter.Export(asset));
-            return exporter.EvaluateResourcePath(asset);
+            var path = exporter.EvaluateResourcePath(asset);
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                ScheduleForegroundTask(() => exporter.Export(asset));
+            }
+            return path;
         }
 
         public void ScheduleForegroundTask(Func<IEnumerable> task)

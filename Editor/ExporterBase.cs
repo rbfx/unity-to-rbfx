@@ -61,6 +61,9 @@ namespace UnityToRebelFork.Editor
 
         public string EvaluateResourcePath(UnityEngine.Object asset, string fileExtension)
         {
+            if (asset == null)
+                return null;
+
             // Get asset path in the asset database
             var assetPath = AssetDatabase.GetAssetPath(asset);
 
