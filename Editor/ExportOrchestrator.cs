@@ -107,6 +107,67 @@ namespace UnityToRebelFork.Editor
             }
         }
 
+        /// <summary>
+        /// True when nothing is queued or running.
+        /// </summary>
+        public bool IsIdle
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return enumeration == null && exportQueue.Count == 0;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs the whole queue now, without waiting for editor updates (batch mode, tests).
+        /// Returns the number of tasks that failed.
+        /// </summary>
+        public int RunToCompletion()
+        {
+            int failures = 0;
+            EditorApplication.update = Delegate.Remove(EditorApplication.update, callback) as EditorApplication.CallbackFunction;
+            while (true)
+            {
+                if (enumeration != null)
+                {
+                    try
+                    {
+                        if (!enumeration.MoveNext())
+                            enumeration = null;
+                    }
+                    catch (Exception exception)
+                    {
+                        UnityEngine.Debug.LogError(exception);
+                        enumeration = null;
+                        ++failures;
+                    }
+                    continue;
+                }
+
+                Func<IEnumerable> task;
+                lock (gate)
+                {
+                    if (exportQueue.Count == 0)
+                        return failures;
+                    task = exportQueue.Dequeue();
+                    ++exportCounter;
+                }
+
+                try
+                {
+                    enumeration = task().GetEnumerator();
+                }
+                catch (Exception exception)
+                {
+                    UnityEngine.Debug.LogError(exception);
+                    ++failures;
+                }
+            }
+        }
+
         private void ProcessQueue()
         {
             string progressBarMessage = null;

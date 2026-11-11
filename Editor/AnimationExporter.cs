@@ -16,12 +16,21 @@ namespace UnityToRebelFork.Editor
 
         public override string EvaluateResourcePath(UnityEngine.AnimationClip asset)
         {
+            if (asset != null && asset.humanMotion && context.HumanoidRig != null)
+                return HumanoidClipBaker.EvaluateResourcePath(asset, context.HumanoidRig);
             return EvaluateResourcePath(asset, ".ani");
         }
 
         public override IEnumerable Export(UnityEngine.AnimationClip asset)
         {
             yield return asset.name;
+
+            if (asset.humanMotion && context.HumanoidRig != null)
+            {
+                // Humanoid clips hold muscle curves, not transforms: sample them on the target rig instead.
+                HumanoidClipBaker.Bake(asset, context.HumanoidRig, _settings, EvaluateResourcePath(asset));
+                yield break;
+            }
 
             var resourcePath = EvaluateResourcePath(asset);
 

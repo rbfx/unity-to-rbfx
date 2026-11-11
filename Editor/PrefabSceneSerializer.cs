@@ -78,7 +78,7 @@ namespace UnityToRebelFork.Editor
 
         private XElement Visit(Component component)
         {
-            var c = new XElement(XNames.component, new XAttribute(XNames._id, component.Id), new XAttribute(XNames._typeName, component.GetType().Name));
+            var c = new XElement(XNames.component, new XAttribute(XNames._id, component.Id), new XAttribute(XNames._typeName, component is GenericComponent generic ? generic.TypeName : component.GetType().Name));
             VisitAttributes(c, component);
             return c;
         }

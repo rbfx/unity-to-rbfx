@@ -13,12 +13,12 @@
 
         public UnityEngine.Color _Color
         {
-            get { return material.GetColor("_Color"); }
+            get { return material.color; }
         }
 
         public UnityEngine.Texture _MainTex
         {
-            get { return material.GetTexture("_MainTex"); }
+            get { return material.mainTexture; }
         }
     }
 }

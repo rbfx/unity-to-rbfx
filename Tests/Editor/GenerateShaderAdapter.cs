@@ -86,7 +86,7 @@ namespace UnityToRebelFork
 
         public static string[] ShaderNames()
         {
-            return ShaderUtil.GetAllShaderInfo().Select(_=>_.name).ToArray();
+            return ShaderUtil.GetAllShaderInfo().Select(_=>_.name).OrderBy(_=>_).ToArray();
         }
     }
 }

@@ -256,19 +256,19 @@ namespace UnityToRebelFork.Editor
         {
             switch (_type)
             {
-                case VariantType.VarBool: return Bool.ToString();
-                case VariantType.VarInt: return Int.ToString();
-                case VariantType.VarFloat: return Float.ToString();
+                case VariantType.VarBool: return Bool ? "true" : "false";
+                case VariantType.VarInt: return Int.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                case VariantType.VarFloat: return F(Float);
                 case VariantType.VarString: return String.ToString();
                 case VariantType.VarStringList: return StringList.ToString();
-                case VariantType.VarVector2: return $"{Vector2.x} {Vector2.y}";
-                case VariantType.VarVector3: return $"{Vector3.x} {Vector3.y} {Vector3.z}";
-                case VariantType.VarVector4: return $"{Vector4.x} {Vector4.y} {Vector4.z} {Vector4.w}";
+                case VariantType.VarVector2: return $"{F(Vector2.x)} {F(Vector2.y)}";
+                case VariantType.VarVector3: return $"{F(Vector3.x)} {F(Vector3.y)} {F(Vector3.z)}";
+                case VariantType.VarVector4: return $"{F(Vector4.x)} {F(Vector4.y)} {F(Vector4.z)} {F(Vector4.w)}";
                 case VariantType.VarIntVector2: return IntVector2.ToString();
                 case VariantType.VarIntVector3: return IntVector3.ToString();
-                case VariantType.VarQuaternion: return $"{Quaternion.w} {Quaternion.x} {Quaternion.y} {Quaternion.z}";
+                case VariantType.VarQuaternion: return $"{F(Quaternion.w)} {F(Quaternion.x)} {F(Quaternion.y)} {F(Quaternion.z)}";
                 case VariantType.VarBuffer: return Buffer.ToString();
-                case VariantType.VarColor: return $"{Color.r} {Color.g} {Color.b} {Color.a}";
+                case VariantType.VarColor: return $"{F(Color.r)} {F(Color.g)} {F(Color.b)} {F(Color.a)}";
                 case VariantType.VarRect: return Rect.ToString();
                 case VariantType.VarIntRect: return IntRect.ToString();
                 case VariantType.VarResourceRef: return ResourceRef.ToString();
@@ -280,6 +280,9 @@ namespace UnityToRebelFork.Editor
                     throw new NotImplementedException();
             }
         }
+
+        /// <summary>A float as text that reads back the same whatever the machine's culture.</summary>
+        private static string F(float value) => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
 
         public object ToJson()
         {

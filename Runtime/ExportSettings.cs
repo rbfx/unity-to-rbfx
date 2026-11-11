@@ -21,6 +21,12 @@ namespace UnityToRebelFork.Editor
         [Tooltip("Keep empty nodes.")]
         public bool EmptyNodes = true;
 
+        [Tooltip("Write prefab instances in a scene as nodes of their own instead of references to exported prefabs (levels: baked collider scale, stable ids per instance).")]
+        public bool InlinePrefabs = false;
+
+        [Tooltip("Give scenes rbfx's default sky and zone (CoreData's DefaultSkybox). Off for games that light their levels themselves.")]
+        public bool SceneEnvironment = true;
+
         public string ResolveResourceFileName(string resourcePath)
         {
             if (string.IsNullOrWhiteSpace(resourcePath))

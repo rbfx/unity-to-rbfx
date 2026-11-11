@@ -358,6 +358,24 @@ namespace UnityToRebelFork.Editor
                 //}
 
                 bone.binding = skinnedMeshRenderer.GetBoneBindPose(index);
+
+                // The model has no node above its root bones, but the Unity parent of a root bone can carry a turn or a scale (the armature
+                // node of an FBX made in Blender): then the local transform does not agree with the bind pose and the mesh is deformed at
+                // rest. The bind pose says where the bone is in the mesh's space (its inverse); use that, where the two differ.
+                if (bone.parent == index)
+                {
+                    var inverse = bone.binding.inverse;
+                    Vector3 position = inverse.GetColumn(3);
+                    Quaternion rotation = inverse.rotation;
+                    Vector3 scale = inverse.lossyScale;
+                    if (Vector3.Distance(position, bone.actualPos) > 1e-4f || Quaternion.Angle(rotation, bone.actualRot) > 0.05f ||
+                        Vector3.Distance(scale, bone.actualScale) > 1e-4f)
+                    {
+                        bone.actualPos = position;
+                        bone.actualRot = rotation;
+                        bone.actualScale = scale;
+                    }
+                }
                 bones[index] = bone;
             }
 

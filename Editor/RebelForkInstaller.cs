@@ -29,7 +29,7 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IShaderMapping, StandardSpecularShaderMapping>(nameof(StandardSpecularShaderMapping));
             container.RegisterSingleton<IShaderMapping, LegacyDiffuseShaderMapping>(nameof(LegacyDiffuseShaderMapping));
             container.RegisterSingleton<IShaderMapping, LitOpaqueShaderMapping>(nameof(LitOpaqueShaderMapping));
-            container.RegisterSingleton<IShaderMapping, DefaultShaderMapping>(nameof(DefaultShaderMapping));
+            container.RegisterSingleton<DefaultShaderMapping, DefaultShaderMapping>();
 
             container.RegisterSingleton<NameCollisionResolver>();
             container.Register<PrefabVisitor>();
