@@ -22,6 +22,7 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IExporter, ParticleSystemExporter>(nameof(ParticleSystemExporter));
             container.RegisterSingleton<IExporter, TextureExporter>(nameof(TextureExporter));
             container.RegisterSingleton<IExporter, TextureRecipeExporter>(nameof(TextureRecipeExporter));
+            container.RegisterSingleton<IExporter, CubemapExporter>(nameof(CubemapExporter));
 
             container.RegisterSingleton<IShaderMapping, ParticleShaderMapping>(nameof(ParticleShaderMapping));
             container.RegisterSingleton<IShaderMapping, TransparentShaderMapping>(nameof(TransparentShaderMapping));

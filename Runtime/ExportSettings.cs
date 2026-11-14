@@ -19,8 +19,11 @@ namespace UnityToRebelFork.Editor
         [Tooltip("Toe only: normalize the exported humanoid clips with the toe CLI (anim normalize_all) into Animations/Humanoid/<rig>.")]
         public bool NormalizeHumanoidClips = false;
 
-        [Tooltip("Toe only: path of toe.dll (src/Toe.Cli/bin/Release/net10.0/toe.dll). Normalization is skipped if empty.")]
+        [Tooltip("Toe only: path of toe.dll (src/Toe.Cli/bin/Release/net10.0/toe.dll). Normalization and cube map prefiltering are skipped if empty.")]
         public string ToeCliPath;
+
+        [Tooltip("Toe only: after a batch export bake the roughness chain of the exported probes and reflection cube maps into their files with the toe CLI (cubemap prefilter), so a game does not filter them when it loads them. Needs the Toe CLI path.")]
+        public bool PrefilterCubemaps = true;
 
         [Tooltip("Data folder RebelFork project path")]
         public string path;

@@ -59,13 +59,84 @@ namespace UnityToRebelFork.Editor
                 for (int i = scene.Components.Count - 1; i >= 0; --i)
                     if (scene.Components[i] is Zone || scene.Components[i] is Skybox) scene.Components.RemoveAt(i);
             }
+            else
+            {
+                ApplyEnvironment(scene, unityScene.name);
+            }
             scene.Id = ++uniqueIdCounter;
 
+            sceneHasReflectionProbes = false;
             foreach (var gameObject in unityScene.GetRootGameObjects())
             {
                 scene.Children.Add(Visit(gameObject));
             }
+
+            // rbfx finds the probes of a scene through this component.
+            if (sceneHasReflectionProbes && !scene.Components.Any(_ => _ is ReflectionProbeManager))
+                scene.Components.Add(new ReflectionProbeManager());
             return scene;
+        }
+
+        private bool sceneHasReflectionProbes;
+
+        /// <summary>
+        /// The zone of the scene takes the lighting settings of the Unity scene: its default reflection (the sky, or a custom cube map) as
+        /// the zone texture, and the ambient light. Where Unity has no reflection texture the zone keeps rbfx's default sky.
+        /// </summary>
+        private void ApplyEnvironment(Scene scene, string sceneName)
+        {
+            var zone = scene.Components.OfType<Zone>().FirstOrDefault();
+            if (zone == null) return;
+
+            UnityEngine.Texture reflection;
+            var decode = new Vector4(1f, 1f, 0f, 1f);
+            if (RenderSettings.defaultReflectionMode == UnityEngine.Rendering.DefaultReflectionMode.Custom)
+            {
+#if UNITY_2022_1_OR_NEWER
+                reflection = RenderSettings.customReflectionTexture;
+#else
+                reflection = RenderSettings.customReflection;
+#endif
+            }
+            else
+            {
+                reflection = UnityEngine.ReflectionProbe.defaultTexture;
+                decode = UnityEngine.ReflectionProbe.defaultTextureHDRDecodeValues;
+            }
+
+            // A texture of one texel is what Unity has before lighting is generated.
+            var hasReflection = reflection != null && reflection.dimension == UnityEngine.Rendering.TextureDimension.Cube && reflection.width > 1;
+            if (hasReflection)
+            {
+                var path = _orchestrator.Value.ScheduleExport(new CubemapExport
+                {
+                    Cubemap = reflection,
+                    HdrDecode = decode,
+                    Scale = RenderSettings.reflectionIntensity,
+                    // rbfx uses the mip levels of a zone texture as they are (nothing filters them); Toe filters it itself.
+                    KeepSourceMips = _settings is null || _settings.Target == ExportTarget.Rbfx,
+                    Name = sceneName + "_DefaultReflection",
+                });
+                if (!string.IsNullOrEmpty(path)) zone.ZoneTexture = ResourceRef.Create<TextureCube>(path);
+            }
+
+            switch (RenderSettings.ambientMode)
+            {
+                case UnityEngine.Rendering.AmbientMode.Skybox:
+                    // The light comes from the zone texture's harmonics.
+                    if (hasReflection)
+                    {
+                        zone.AmbientBrightness = 0f;
+                        zone.BackgroundBrightness = RenderSettings.ambientIntensity;
+                    }
+                    break;
+                case UnityEngine.Rendering.AmbientMode.Flat:
+                    zone.AmbientColor = RenderSettings.ambientLight;
+                    break;
+                case UnityEngine.Rendering.AmbientMode.Trilight:
+                    zone.AmbientColor = RenderSettings.ambientEquatorColor;
+                    break;
+            }
         }
 
         /// <summary>
@@ -193,6 +264,10 @@ namespace UnityToRebelFork.Editor
             {
                 VisitParticleSystem(node, particleSystem);
             }
+            else if (component is UnityEngine.ReflectionProbe reflectionProbe)
+            {
+                VisitReflectionProbe(node, reflectionProbe);
+            }
             else if (component is UnityEngine.Joint joint)
             {
                 VisitJoint(node, joint);
@@ -212,6 +287,73 @@ namespace UnityToRebelFork.Editor
             var component = new ParticleGraphEmitter();
             component.Effect = ResourceRef.Create<ParticleGraphEffect>(_orchestrator.Value.ScheduleExport(system));
             component.IsEnabled = system.main.playOnAwake;
+            node.Components.Add(component);
+        }
+
+        /// <summary>
+        /// A reflection probe becomes a ReflectionProbe component with its baked cube map (HDR, see <see cref="CubemapExporter"/>). Unity's
+        /// volume is a box in world axes (the node's scale and rotation do not change it), so it is divided by the node's scale to be
+        /// the box in the node's space, which is what rbfx's probe takes.
+        /// </summary>
+        private void VisitReflectionProbe(Node node, UnityEngine.ReflectionProbe probe)
+        {
+            var component = new ReflectionProbe();
+            component.IsEnabled = probe.enabled;
+
+            var scale = probe.transform.lossyScale;
+            Vector3 InNodeSpace(Vector3 world)
+            {
+                var offset = world - probe.transform.position;
+                return new Vector3(
+                    Mathf.Abs(scale.x) > 1e-6f ? offset.x / scale.x : 0f,
+                    Mathf.Abs(scale.y) > 1e-6f ? offset.y / scale.y : 0f,
+                    Mathf.Abs(scale.z) > 1e-6f ? offset.z / scale.z : 0f);
+            }
+
+            var bounds = probe.bounds;
+            var min = InNodeSpace(bounds.min);
+            var max = InNodeSpace(bounds.max);
+            // A negative scale mirrors the box.
+            component.BoundingBoxMin = Vector3.Min(min, max);
+            component.BoundingBoxMax = Vector3.Max(min, max);
+            component.ProjectionBoxMin = component.BoundingBoxMin;
+            component.ProjectionBoxMax = component.BoundingBoxMax;
+            if (Quaternion.Angle(probe.transform.rotation, Quaternion.identity) > 0.01f)
+                Debug.LogWarning($"[ReflectionProbe] '{probe.name}' is rotated; Unity's probe box ignores that, so the exported volume is the unrotated box.", probe);
+
+            var realtime = probe.mode == UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            var texture = realtime ? null : probe.texture;
+            var hasTexture = texture != null && texture.dimension == UnityEngine.Rendering.TextureDimension.Cube;
+            if (hasTexture)
+            {
+                var path = _orchestrator.Value.ScheduleExport(new CubemapExport
+                {
+                    Cubemap = texture,
+                    HdrDecode = probe.textureHDRDecodeValues,
+                    // rbfx does not filter the texture of a probe it did not render: it reflects with the file's mips as they are, so Unity's (blurred
+                    // per roughness) are kept. Toe makes its own chain: from level 0 with the Toe CLI (cubemap prefilter), or when a game loads it.
+                    KeepSourceMips = _settings is null || _settings.Target == ExportTarget.Rbfx,
+                    Name = probe.name + "_" + probe.GetInstanceID(),
+                });
+                if (!string.IsNullOrEmpty(path)) component.Texture = ResourceRef.Create<TextureCube>(path);
+            }
+
+            component.Priority = probe.importance;
+            component.UseBoxProjection = probe.boxProjection;
+            component.IsRealtimeUpdate = realtime;
+            component.TextureSize = probe.resolution;
+            component.NearClip = probe.nearClipPlane;
+            component.FarClip = probe.farClipPlane;
+
+            // Toe's probe: a probe without a baked texture is drawn by the engine once (Baked), a realtime one again and again.
+            component.Mode = realtime ? "Dynamic" : hasTexture ? "CustomTexture" : "Baked";
+            component.Intensity = probe.intensity;
+            component.BlendDistance = probe.blendDistance;
+            component.BoxProjection = probe.boxProjection;
+            component.Resolution = Mathf.Clamp(Mathf.ClosestPowerOfTwo(probe.resolution), 16, 1024);
+            component.CaptureFarClip = probe.farClipPlane;
+
+            sceneHasReflectionProbes = true;
             node.Components.Add(component);
         }
 

@@ -202,6 +202,8 @@ namespace UnityToRebelFork.Editor
             List<string> normalized = null;
             if (humanBones != null && settings.NormalizeHumanoidClips && animations.Count > 0 && models.Count > 0)
                 normalized = NormalizeClips(settings, models[0].Model, animations, ref failures);
+            if (toe && settings.PrefilterCubemaps && context.CubemapsToPrefilter.Count > 0)
+                PrefilterCubemaps(settings, context.CubemapsToPrefilter, ref failures);
             if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized);
             if (toe && !string.IsNullOrEmpty(effectList)) WriteEffectReport(settings, context, System.IO.Path.GetFileNameWithoutExtension(effectList));
             bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0;
@@ -306,6 +308,43 @@ namespace UnityToRebelFork.Editor
                 }
             }
             return Directory.GetFiles(outFolder, "*.ani").Select(f => outResource + "/" + Path.GetFileName(f)).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        }
+
+        /// <summary>
+        /// Runs <c>dotnet toe.dll --data &lt;out&gt; cubemap prefilter &lt;cube map xml&gt;... --in-place</c> once on the cube maps that were exported (probes and the scene's reflection):
+        /// Toe bakes their roughness chain into the files, so a game does not filter them when it first uses them. Without the Toe CLI the cube maps are left as they are
+        /// (Toe filters them on load); a failure is an error of the export.
+        /// </summary>
+        private static void PrefilterCubemaps(ExportSettings settings, List<string> cubemaps, ref int failures)
+        {
+            if (string.IsNullOrEmpty(settings.ToeCliPath) || !System.IO.File.Exists(settings.ToeCliPath))
+            {
+                Debug.LogWarning($"[BatchExport] {cubemaps.Count} cube map(s) were exported; give -toe <path of toe.dll> to bake their roughness chain (cubemap prefilter), otherwise Toe filters them when a game loads them.");
+                return;
+            }
+            var start = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            foreach (var arg in new[] { settings.ToeCliPath, "--data", settings.path, "cubemap", "prefilter" }) start.ArgumentList.Add(arg);
+            foreach (var cubemap in cubemaps) start.ArgumentList.Add(cubemap.Replace('\\', '/'));
+            start.ArgumentList.Add("--in-place");
+            using (var process = System.Diagnostics.Process.Start(start))
+            {
+                var errorTask = process.StandardError.ReadToEndAsync();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                string error = errorTask.Result;
+                if (output.Length > 0) Debug.Log("[BatchExport] toe: " + output);
+                if (process.ExitCode != 0)
+                {
+                    Debug.LogError($"[BatchExport] toe cubemap prefilter failed ({process.ExitCode}): {error}");
+                    failures++;
+                }
+            }
         }
 
         private static void WriteManifest(ExportSettings settings, string name, List<ModelEntry> models,
