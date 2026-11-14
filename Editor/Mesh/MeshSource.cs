@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 using System.Linq;
-using Unity.VisualScripting.YamlDotNet.Core.Tokens;
 using static UnityToRebelFork.Editor.MeshReference;
 
 namespace UnityToRebelFork.Editor
