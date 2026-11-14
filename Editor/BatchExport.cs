@@ -270,7 +270,7 @@ namespace UnityToRebelFork.Editor
         /// </summary>
         private static List<string> NormalizeClips(ExportSettings settings, string modelResource, List<(string Name, string Path)> animations, ref int failures)
         {
-            if (string.IsNullOrEmpty(settings.ToeCliPath) || !File.Exists(settings.ToeCliPath))
+            if (string.IsNullOrEmpty(settings.ToeCliPath) || !System.IO.File.Exists(settings.ToeCliPath))
             {
                 Debug.LogWarning("[BatchExport] -normalize needs -toe <path of toe.dll>; the clips are not normalized.");
                 return null;
