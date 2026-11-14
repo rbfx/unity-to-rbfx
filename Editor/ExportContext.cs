@@ -27,6 +27,9 @@ namespace UnityToRebelFork.Editor
         /// </summary>
         public bool BakeClipsOnRig { get; set; }
 
+        /// <summary>Toe target: the cube map XMLs (resource paths) that were exported and are to get their roughness chain baked afterwards (see <see cref="CubemapExporter"/>).</summary>
+        public System.Collections.Generic.List<string> CubemapsToPrefilter { get; } = new System.Collections.Generic.List<string>();
+
         /// <summary>What was written for each particle system, and what could not be converted (see <see cref="ParticleSystemExporter"/>).</summary>
         public System.Collections.Generic.List<EffectReport> EffectReports { get; } = new System.Collections.Generic.List<EffectReport>();
     }

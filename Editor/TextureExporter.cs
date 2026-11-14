@@ -19,6 +19,13 @@ namespace UnityToRebelFork.Editor
         {
             yield return asset.name;
 
+            // A cube map is not a 2D image; probes and the scene's reflection go through CubemapExporter (HDR, cube DDS plus XML).
+            if (asset.dimension == UnityEngine.Rendering.TextureDimension.Cube)
+            {
+                UnityEngine.Debug.LogWarning($"[TextureExporter] '{asset.name}' is a cube map; only reflection probes and the scene's default reflection export those, so {EvaluateResourcePath(asset)} is not written.", asset);
+                yield break;
+            }
+
             var tImporter = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(asset)) as TextureImporter;
             var texType = tImporter?.textureType ?? TextureImporterType.Default;
             if (texType == TextureImporterType.NormalMap)

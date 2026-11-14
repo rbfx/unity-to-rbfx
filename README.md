@@ -19,3 +19,15 @@ The exporter writes for one engine, chosen by `ExportSettings.Target`:
   and can normalize the baked humanoid clips with the toe CLI. Menu `Tools/Toe/Export assets`, or batch `BatchExport.RunToe`.
 
 Batch arguments: `-exportTarget rbfx|toe` (for `BatchExport.Run`), `-normalize` and `-toe <path of toe.dll>` (Toe target only).
+
+# Reflection probes
+
+A scene export writes each Unity `ReflectionProbe` as a `ReflectionProbe` component (plus a `ReflectionProbeManager` on the scene) and puts the
+scene's default reflection on the zone. The cube maps are exported as HDR: `<name>.dds` (RGBA16F, DX10 header, full mip chain) and `<name>.xml`
+(`<cubemap>` with the image and an `<sh>` tag for the ambient light). Probes with Toe's attributes (`Mode`, `Intensity`, `Blend Distance`, ...) are
+read by Toe; rbfx skips what it does not know. Cube maps used by materials are not exported.
+
+Mip levels: for the **Rbfx** target Unity's own (roughness-blurred) mips are written as they are, because rbfx reflects with a probe texture's mips without
+filtering them. For the **Toe** target the file has level 0 plus averaged mips and Toe makes the roughness chain itself when a game first uses the cube map;
+a batch export with `-toe <path of toe.dll>` (setting `PrefilterCubemaps`, default on) has the Toe CLI bake that chain into the files instead
+(`cubemap prefilter <xml>... --in-place`), so nothing is filtered at load.
