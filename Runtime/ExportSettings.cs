@@ -25,6 +25,9 @@ namespace UnityToRebelFork.Editor
         [Tooltip("Toe only: after a batch export bake the roughness chain of the exported probes and reflection cube maps into their files with the toe CLI (cubemap prefilter), so a game does not filter them when it loads them. Needs the Toe CLI path.")]
         public bool PrefilterCubemaps = true;
 
+        [Tooltip("Toe only: encode exported audio (WAV, MP3) to Ogg Vorbis after a batch export, with the toe CLI (sound encode, which runs ffmpeg), and remove the original. Without the Toe CLI path or ffmpeg the files are left as they are, with a warning.")]
+        public bool EncodeAudio = true;
+
         [Tooltip("Data folder RebelFork project path")]
         public string path;
 

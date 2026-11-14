@@ -16,8 +16,11 @@ namespace UnityToRebelFork.Editor
     /// <code>
     /// Unity -batchmode -quit -projectPath &lt;project&gt; -executeMethod UnityToRebelFork.Editor.BatchExport.Run
     ///       -exportOut &lt;Data folder&gt; [-exportCharacter &lt;Assets/...prefab&gt; [-exportClips &lt;list file&gt;]] [-exportProps &lt;list file&gt;]
-    ///       [-exportScene &lt;Assets/...unity&gt;]
+    ///       [-exportScene &lt;Assets/...unity&gt;] [-exportSprites &lt;list file&gt;] [-exportAudio &lt;list file&gt;] [-toe &lt;toe.dll&gt;]
     /// </code>
+    /// Toe target only: -exportSprites takes a list of textures imported as sprites (written as a PNG and a sprite sheet JSON), prefabs with an Animator and sprite renderers (written as
+    /// an animation set JSON next to the sheet of their sprites) and folders of those (see <see cref="SpriteSheetExporter"/>, <see cref="SpriteAnimationExporter"/>); -exportAudio takes audio
+    /// clips and folders of them (see <see cref="AudioClipExporter"/>) and, with -toe and ffmpeg, encodes them to Ogg Vorbis.
     /// A scene is written as &lt;its asset path&gt;.scene with everything it uses; its prefab instances are written inline (see
     /// <see cref="ExportSettings.InlinePrefabs"/>) and [ExportComponent] behaviours become components.
     /// A list file names one asset path per line (# starts a comment). The character's enabled skinned meshes are exported with
@@ -75,8 +78,12 @@ namespace UnityToRebelFork.Editor
             var propList = Arg(args, "-exportProps");
             var scenePath = Arg(args, "-exportScene");
             var effectList = Arg(args, "-exportEffects");
-            if (characterPath == null && propList == null && scenePath == null && effectList == null)
-                throw new ArgumentException("Give -exportCharacter, -exportProps, -exportEffects or -exportScene.");
+            var spriteList = Arg(args, "-exportSprites");
+            var audioList = Arg(args, "-exportAudio");
+            if (characterPath == null && propList == null && scenePath == null && effectList == null && spriteList == null && audioList == null)
+                throw new ArgumentException("Give -exportCharacter, -exportProps, -exportEffects, -exportSprites, -exportAudio or -exportScene.");
+            if ((spriteList != null || audioList != null) && target != ExportTarget.Toe)
+                throw new ArgumentException("-exportSprites and -exportAudio are for the Toe target: give -exportTarget toe (or use RunToe).");
             // Numbers in the written files must not depend on the machine's culture.
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
@@ -93,6 +100,8 @@ namespace UnityToRebelFork.Editor
             settings.InlinePrefabs = scenePath != null;
             settings.SceneEnvironment = scenePath == null; // The game lights its levels (sky, zone and fog) itself.
             var context = new ExportContext(character) { HumanoidRig = character };
+            // Sprite and audio exporters take what they know only when the run was asked for sprites or audio: a character's texture that happens to be imported as a sprite stays a texture.
+            context.ClaimSpriteAssets = spriteList != null || audioList != null;
             // A character without a humanoid avatar plays generic clips: sample them on its rig, which puts the armature above the root bone into it.
             context.BakeClipsOnRig = character != null && HumanoidMapExporter.Build(character) == null;
             var container = new Rbfx.LightInject.ServiceContainer();
@@ -186,6 +195,10 @@ namespace UnityToRebelFork.Editor
                 }
             }
 
+            // Sprites: textures imported as sprites become sheets, prefabs with an Animator and sprite renderers become animation sets. Audio: clips are copied and encoded afterwards.
+            int missingSprites = ScheduleAssets(orchestrator, context, spriteList, "sprite", new[] { "t:Texture2D", "t:Prefab" });
+            int missingAudio = ScheduleAssets(orchestrator, context, audioList, "audio", new[] { "t:AudioClip" });
+
             if (scenePath != null)
             {
                 var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
@@ -204,10 +217,116 @@ namespace UnityToRebelFork.Editor
                 normalized = NormalizeClips(settings, models[0].Model, animations, ref failures);
             if (toe && settings.PrefilterCubemaps && context.CubemapsToPrefilter.Count > 0)
                 PrefilterCubemaps(settings, context.CubemapsToPrefilter, ref failures);
+            if (toe && context.AudioToEncode.Count > 0)
+                EncodeAudio(settings, context.AudioToEncode, ref failures);
             if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized);
             if (toe && !string.IsNullOrEmpty(effectList)) WriteEffectReport(settings, context, System.IO.Path.GetFileNameWithoutExtension(effectList));
-            bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0;
+            bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0 || missingSprites > 0 || missingAudio > 0;
             return failures == 0 && !missing ? 0 : 1;
+        }
+
+        /// <summary>
+        /// Schedules the assets of a list file: a line is an asset path, or a folder whose assets of the given types (the Asset Database filters, such as t:Texture2D) are all offered to
+        /// the exporters. An asset that no exporter takes is an error when it is named, and is skipped quietly when it was only found in a folder (a folder of sprites also holds
+        /// textures and prefabs that are not sprites). A line can end with options after a bar: <c>Assets/Pack | ppu=32</c> forces 32 pixels per unit on the sprites under that path
+        /// (see <see cref="ExportContext.SpritePixelsPerUnitRules"/>). Returns the number of errors.
+        /// </summary>
+        private static int ScheduleAssets(ExportOrchestrator orchestrator, ExportContext context, string listFile, string kind, string[] filters)
+        {
+            if (string.IsNullOrEmpty(listFile)) return 0;
+            int errors = 0, scheduled = 0, skipped = 0;
+            foreach (var raw in System.IO.File.ReadAllLines(listFile))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+                var bar = line.IndexOf('|');
+                if (bar >= 0)
+                {
+                    foreach (var option in line.Substring(bar + 1).Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (option.StartsWith("ppu=", StringComparison.OrdinalIgnoreCase) && float.TryParse(option.Substring(4), NumberStyles.Float, CultureInfo.InvariantCulture, out var ppu) && ppu > 0f)
+                            context.SpritePixelsPerUnitRules.Add(new KeyValuePair<string, float>(line.Substring(0, bar).Trim(), ppu));
+                        else
+                            Debug.LogError($"[BatchExport] unknown option '{option}' in the list {listFile} (known: ppu=<pixels per unit>)");
+                    }
+                    line = line.Substring(0, bar).Trim();
+                }
+                if (AssetDatabase.IsValidFolder(line))
+                {
+                    var paths = new SortedSet<string>(StringComparer.Ordinal);
+                    foreach (var filter in filters)
+                        foreach (var guid in AssetDatabase.FindAssets(filter, new[] { line })) paths.Add(AssetDatabase.GUIDToAssetPath(guid));
+                    foreach (var path in paths)
+                    {
+                        var asset = AssetDatabase.LoadMainAssetAtPath(path);
+                        var resource = asset == null ? null : orchestrator.ScheduleExport(asset);
+                        if (resource == null) { skipped++; continue; }
+                        scheduled++;
+                        Debug.Log($"[BatchExport] {kind} {path} -> {resource}");
+                    }
+                    continue;
+                }
+
+                var named = AssetDatabase.LoadMainAssetAtPath(line);
+                var result = named == null ? null : orchestrator.ScheduleExport(named);
+                if (result == null)
+                {
+                    Debug.LogError($"[BatchExport] cannot export the {kind} asset {line} (is it there, and is it a {kind} the exporters know?)");
+                    errors++;
+                    continue;
+                }
+                scheduled++;
+                Debug.Log($"[BatchExport] {kind} {line} -> {result}");
+            }
+            Debug.Log($"[BatchExport] {kind}: {scheduled} scheduled, {skipped} skipped (found in folders, not {kind} assets), {errors} errors");
+            return errors;
+        }
+
+        /// <summary>
+        /// Runs <c>dotnet toe.dll sound encode &lt;file&gt; &lt;file&gt;.ogg</c> for every exported audio file that is not an Ogg yet, and removes the original when it worked. Without the
+        /// Toe CLI, or when ffmpeg is missing, the files stay as they are (a game can play them, they are only bigger) and that is a warning; any other failure is an error of the export.
+        /// </summary>
+        private static void EncodeAudio(ExportSettings settings, List<string> files, ref int failures)
+        {
+            if (string.IsNullOrEmpty(settings.ToeCliPath) || !System.IO.File.Exists(settings.ToeCliPath))
+            {
+                Debug.LogWarning($"[BatchExport] {files.Count} audio file(s) were exported as they are; give -toe <path of toe.dll> (and have ffmpeg on the PATH) to encode them to Ogg Vorbis.");
+                return;
+            }
+            foreach (var resource in files)
+            {
+                var input = Path.GetFullPath(Path.Combine(settings.path, resource));
+                var output = Path.ChangeExtension(input, ".ogg");
+                var start = new System.Diagnostics.ProcessStartInfo("dotnet")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+                foreach (var arg in new[] { settings.ToeCliPath, "sound", "encode", input, output }) start.ArgumentList.Add(arg);
+                using (var process = System.Diagnostics.Process.Start(start))
+                {
+                    var errorTask = process.StandardError.ReadToEndAsync();
+                    string text = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+                    string error = errorTask.Result;
+                    if (process.ExitCode == 0)
+                    {
+                        Debug.Log("[BatchExport] toe: " + text.Trim());
+                        System.IO.File.Delete(input);
+                        continue;
+                    }
+                    var message = (text + "\n" + error).Trim();
+                    if (message.Contains("ffmpeg not found"))
+                    {
+                        Debug.LogWarning($"[BatchExport] ffmpeg was not found, so {resource} is left as it is (put ffmpeg on the PATH to get an Ogg file).");
+                        continue;
+                    }
+                    Debug.LogError($"[BatchExport] toe sound encode failed for {resource} ({process.ExitCode}): {message}");
+                    failures++;
+                }
+            }
         }
 
         /// <summary>True if the prefab draws something: an enabled mesh renderer or skinned mesh renderer, or a LOD group.</summary>

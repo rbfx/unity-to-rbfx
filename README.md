@@ -20,6 +20,26 @@ The exporter writes for one engine, chosen by `ExportSettings.Target`:
 
 Batch arguments: `-exportTarget rbfx|toe` (for `BatchExport.Run`), `-normalize` and `-toe <path of toe.dll>` (Toe target only).
 
+# Sprites and audio (Toe target)
+
+`-exportSprites <list file>` and `-exportAudio <list file>` (batch, `RunToe`), or selecting the assets and `Tools/Toe/Export assets`:
+
+- A texture imported as sprites (Single or Multiple) becomes `<path>.png` (the source PNG itself) and `<path>.json`, a sprite sheet with the rectangle (from the **top**-left,
+  Unity counts from the bottom), pivot and pixels per unit of every sprite, and `pixelArt` when the texture is point filtered.
+- A prefab with an Animator and sprite renderers becomes `<path>.anim.json`, an animation set: one clip per Animator state that plays a sprite animation (frames, rate, loop,
+  events) and a `states` map from the lowercase state name to the clip. Clips key the sprite with an object reference curve on `SpriteRenderer.sprite`, or with the
+  `SpriteResolver` of the 2D Animation package (the key is the hash of `Category_Label` in the prefab's Sprite Library, read by reflection: the package is not needed to compile
+  the exporter). The key at the very end of a clip that only wraps a loop is dropped; the last pose of a clip that does not loop is kept.
+- An audio clip is exported from its source file; with `-toe <toe.dll>` and ffmpeg on the PATH it is encoded to Ogg Vorbis (`toe sound encode`) and the original is removed
+  (setting *Encode Audio*). Unity cannot write Ogg itself.
+- A list file has one asset path or folder per line (`#` comments). A folder offers everything in it to the exporters; assets that are no sprites or audio are skipped.
+  A line can end with `| ppu=32` to force pixels per unit on the sprites under it (a pack is drawn for its own unit, a game has one).
+- The three exporters are registered as `0SpriteSheetExporter`, `0SpriteAnimationExporter` and `0AudioClipExporter`: the orchestrator asks exporters in the order of their
+  names and takes the first that accepts an asset, and `TextureExporter` and `AnimationExporter` accept everything, so the `0` puts the sprite exporters first. A batch run takes
+  sprites and audio only when asked for them (`ExportContext.ClaimSpriteAssets`), so exporting characters does not change.
+- Tilemaps are not exported: a tile sheet is a sprite sheet. The pure parts (hash, sheet and animation JSON, keys to frames) have no Unity dependency and run as plain NUnit
+  tests (`Tests/Editor/SpriteExportTests.cs`).
+
 # Reflection probes
 
 A scene export writes each Unity `ReflectionProbe` as a `ReflectionProbe` component (plus a `ReflectionProbeManager` on the scene) and puts the
