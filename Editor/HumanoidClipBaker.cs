@@ -41,7 +41,12 @@ namespace UnityToRebelFork.Editor
             return clip.name;
         }
 
-        public static void Bake(AnimationClip clip, GameObject rig, ExportSettings settings, string resourcePath)
+        /// <param name="generic">
+        /// The clip is not humanoid (the rig has no human avatar): its curves are sampled on the rig as they are. The top-level bones are then recorded
+        /// in the space of the skinned mesh, which is what the exported model's bones are in, so what lies above them (the armature of a Blender
+        /// file, turned to make Z up) is part of them.
+        /// </param>
+        public static void Bake(AnimationClip clip, GameObject rig, ExportSettings settings, string resourcePath, bool generic = false)
         {
             var instance = (GameObject)UnityEngine.Object.Instantiate(rig);
             instance.hideFlags = HideFlags.HideAndDontSave;
@@ -50,9 +55,11 @@ namespace UnityToRebelFork.Editor
             try
             {
                 var animator = instance.GetComponentInChildren<Animator>();
-                if (animator == null || animator.avatar == null || !animator.avatar.isHuman)
+                if (!generic && (animator == null || animator.avatar == null || !animator.avatar.isHuman))
                     throw new System.InvalidOperationException($"{rig.name} has no Animator with a humanoid avatar to bake {clip.name} on.");
-                animator.applyRootMotion = false;
+                if (animator != null) animator.applyRootMotion = false;
+                var sampleTarget = animator != null ? animator.gameObject : instance;
+                var meshSpace = generic ? (instance.GetComponentInChildren<SkinnedMeshRenderer>(true)?.transform.worldToLocalMatrix ?? Matrix4x4.identity) : Matrix4x4.identity;
 
                 var bones = CollectBones(instance);
                 float frameRate = clip.frameRate > 0f ? clip.frameRate : 30f;
@@ -73,19 +80,19 @@ namespace UnityToRebelFork.Editor
                     foreach (var t in times)
                     {
                         AnimationMode.BeginSampling();
-                        AnimationMode.SampleAnimationClip(animator.gameObject, clip, t);
+                        AnimationMode.SampleAnimationClip(sampleTarget, clip, t);
                         AnimationMode.EndSampling();
                         if (reference.Count == 0)
                         {
                             foreach (var bone in topLevel)
-                                reference[bone] = bone.parent != null ? bone.parent.worldToLocalMatrix : Matrix4x4.identity;
+                                reference[bone] = generic ? meshSpace : bone.parent != null ? bone.parent.worldToLocalMatrix : Matrix4x4.identity;
                         }
                         foreach (var bone in bones)
                         {
-                            if (reference.TryGetValue(bone, out var toStart) && bone.parent != null)
+                            if (reference.TryGetValue(bone, out var toStart) && (generic || bone.parent != null))
                             {
                                 var local = toStart * bone.localToWorldMatrix;
-                                samples[bone].Add((t, local.GetColumn(3), local.rotation, bone.localScale));
+                                samples[bone].Add((t, local.GetColumn(3), local.rotation, generic ? local.lossyScale : bone.localScale));
                             }
                             else
                             {
@@ -109,7 +116,7 @@ namespace UnityToRebelFork.Editor
                     foreach (var bone in bones)
                     {
                         var list = samples[bone];
-                        writer.WriteStringSZ(bone.name);
+                        writer.WriteStringSZ(System.Uri.EscapeDataString(bone.name)); // As the bone is named in the model (see ExporterBase.DecorateName).
                         writer.Write((byte)7); // Position, rotation and scale.
                         writer.Write(list.Count);
                         foreach (var (time, position, rotation, scale) in list)

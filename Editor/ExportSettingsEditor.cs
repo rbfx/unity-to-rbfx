@@ -76,8 +76,19 @@ namespace UnityToRebelFork.Editor
 
         public override void OnInspectorGUI()
         {
-            base.OnInspectorGUI();
             var script = (ExportSettings)target;
+            // The Toe-only fields are hidden while the target is rbfx.
+            serializedObject.Update();
+            var property = serializedObject.GetIterator();
+            for (bool enter = true; property.NextVisible(enter); enter = false)
+            {
+                if (script != null && script.Target == ExportTarget.Rbfx
+                    && (property.name == nameof(ExportSettings.NormalizeHumanoidClips) || property.name == nameof(ExportSettings.ToeCliPath)))
+                    continue;
+                using (new EditorGUI.DisabledScope(property.name == "m_Script"))
+                    EditorGUILayout.PropertyField(property, true);
+            }
+            serializedObject.ApplyModifiedProperties();
 
             if (script == null)
                 return;

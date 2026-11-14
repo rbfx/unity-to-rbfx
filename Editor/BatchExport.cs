@@ -28,12 +28,21 @@ namespace UnityToRebelFork.Editor
     /// </summary>
     public static class BatchExport
     {
-        public static void Run()
+        /// <summary>Exports for rbfx: plain rbfx content, no Toe-only files (whatever -exportTarget says).</summary>
+        public static void RunRbfx() => RunTarget(ExportTarget.Rbfx);
+
+        /// <summary>Exports for Toe: also writes the humanoid map, effect reports and, with -normalize -toe, normalized humanoid clips.</summary>
+        public static void RunToe() => RunTarget(ExportTarget.Toe);
+
+        /// <summary>The target comes from -exportTarget rbfx|toe (rbfx if it is missing).</summary>
+        public static void Run() => RunTarget(null);
+
+        private static void RunTarget(ExportTarget? forced)
         {
             int exitCode = 1;
             try
             {
-                exitCode = Export(Environment.GetCommandLineArgs());
+                exitCode = Export(Environment.GetCommandLineArgs(), forced);
             }
             catch (Exception exception)
             {
@@ -50,15 +59,24 @@ namespace UnityToRebelFork.Editor
             return null;
         }
 
-        public static int Export(string[] args)
+        public static int Export(string[] args) => Export(args, null);
+
+        public static int Export(string[] args, ExportTarget? forcedTarget)
         {
+            var targetArg = Arg(args, "-exportTarget");
+            if (targetArg != null && !string.Equals(targetArg, "toe", StringComparison.OrdinalIgnoreCase) && !string.Equals(targetArg, "rbfx", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("-exportTarget is rbfx or toe, not " + targetArg);
+            var target = forcedTarget ?? (string.Equals(targetArg, "toe", StringComparison.OrdinalIgnoreCase) ? ExportTarget.Toe : ExportTarget.Rbfx);
+            bool normalize = Array.Exists(args, a => string.Equals(a, "-normalize", StringComparison.OrdinalIgnoreCase));
+            var toeCli = Arg(args, "-toe");
             var outDir = Arg(args, "-exportOut") ?? throw new ArgumentException("-exportOut is missing");
             var characterPath = Arg(args, "-exportCharacter");
             var clipList = Arg(args, "-exportClips");
             var propList = Arg(args, "-exportProps");
             var scenePath = Arg(args, "-exportScene");
-            if (characterPath == null && propList == null && scenePath == null)
-                throw new ArgumentException("Give -exportCharacter, -exportProps or -exportScene.");
+            var effectList = Arg(args, "-exportEffects");
+            if (characterPath == null && propList == null && scenePath == null && effectList == null)
+                throw new ArgumentException("Give -exportCharacter, -exportProps, -exportEffects or -exportScene.");
             // Numbers in the written files must not depend on the machine's culture.
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
@@ -69,9 +87,14 @@ namespace UnityToRebelFork.Editor
             // Opening a scene unloads unused assets, which would destroy these settings.
             settings.hideFlags = HideFlags.DontUnloadUnusedAsset;
             settings.path = outDir;
+            settings.Target = target;
+            settings.NormalizeHumanoidClips = normalize && target == ExportTarget.Toe;
+            settings.ToeCliPath = toeCli;
             settings.InlinePrefabs = scenePath != null;
             settings.SceneEnvironment = scenePath == null; // The game lights its levels (sky, zone and fog) itself.
             var context = new ExportContext(character) { HumanoidRig = character };
+            // A character without a humanoid avatar plays generic clips: sample them on its rig, which puts the armature above the root bone into it.
+            context.BakeClipsOnRig = character != null && HumanoidMapExporter.Build(character) == null;
             var container = new Rbfx.LightInject.ServiceContainer();
             RebelForkInstaller.Install(container, settings, context);
             var orchestrator = container.GetInstance<ExportOrchestrator>();
@@ -143,6 +166,26 @@ namespace UnityToRebelFork.Editor
                 }
             }
 
+            // Effects are prefabs with particle systems: each system is written as a particle graph effect and the prefab plays it with emitters.
+            int missingEffects = 0;
+            if (!string.IsNullOrEmpty(effectList))
+            {
+                foreach (var raw in System.IO.File.ReadAllLines(effectList))
+                {
+                    var line = raw.Trim();
+                    if (line.Length == 0 || line.StartsWith("#")) continue;
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(line);
+                    var path = prefab == null ? null : orchestrator.ScheduleExport(prefab);
+                    if (path == null)
+                    {
+                        Debug.LogError("[BatchExport] cannot export the effect " + line);
+                        missingEffects++;
+                        continue;
+                    }
+                    Debug.Log($"[BatchExport] effect {line} -> {path}");
+                }
+            }
+
             if (scenePath != null)
             {
                 var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
@@ -152,8 +195,16 @@ namespace UnityToRebelFork.Editor
             }
 
             int failures = orchestrator.RunToCompletion();
-            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone);
-            bool missing = (character != null && models.Count == 0) || missingProps > 0;
+            bool toe = settings.Target == ExportTarget.Toe;
+            var humanBones = toe && character != null ? HumanoidMapExporter.Build(character) : null;
+            if (humanBones != null)
+                foreach (var entry in models) HumanoidMapExporter.Write(settings, entry.Model, humanBones);
+            List<string> normalized = null;
+            if (humanBones != null && settings.NormalizeHumanoidClips && animations.Count > 0 && models.Count > 0)
+                normalized = NormalizeClips(settings, models[0].Model, animations, ref failures);
+            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized);
+            if (toe && !string.IsNullOrEmpty(effectList)) WriteEffectReport(settings, context, System.IO.Path.GetFileNameWithoutExtension(effectList));
+            bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0;
             return failures == 0 && !missing ? 0 : 1;
         }
 
@@ -195,14 +246,77 @@ namespace UnityToRebelFork.Editor
             return true;
         }
 
+        /// <summary>Effects/&lt;name&gt;.json: for every particle system that was written, its file, the nodes it uses and what could not be converted.</summary>
+        private static void WriteEffectReport(ExportSettings settings, ExportContext context, string name)
+        {
+            string Q(string s) => "\"" + (s ?? string.Empty).Replace("\\", "/").Replace("\"", "\\\"") + "\"";
+            var json = new StringBuilder();
+            json.AppendLine("{ \"effects\": [");
+            for (int i = 0; i < context.EffectReports.Count; i++)
+            {
+                var r = context.EffectReports[i];
+                json.Append($"  {{ \"path\": {Q(r.Path)}, \"name\": {Q(r.Name)}, \"nodes\": [{string.Join(", ", r.Nodes.Select(Q))}], \"warnings\": [{string.Join(", ", r.Warnings.Select(Q))}] }}");
+                json.AppendLine(i + 1 < context.EffectReports.Count ? "," : string.Empty);
+            }
+            json.AppendLine("] }");
+            using (var stream = settings.CreateFile($"Effects/{ExporterBase.SafeFileName(name)}.json"))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                writer.Write(json.ToString());
+        }
+
+        /// <summary>
+        /// Runs <c>dotnet toe.dll --data &lt;out&gt; anim normalize_all Animations/&lt;rig&gt; --model &lt;model&gt; --out &lt;out&gt;/Animations/Humanoid/&lt;rig&gt;</c> on the clips that were
+        /// baked on the character, and returns the normalized clips (resource paths), or null if nothing was written.
+        /// </summary>
+        private static List<string> NormalizeClips(ExportSettings settings, string modelResource, List<(string Name, string Path)> animations, ref int failures)
+        {
+            if (string.IsNullOrEmpty(settings.ToeCliPath) || !File.Exists(settings.ToeCliPath))
+            {
+                Debug.LogWarning("[BatchExport] -normalize needs -toe <path of toe.dll>; the clips are not normalized.");
+                return null;
+            }
+            var rigFolder = Path.GetDirectoryName(animations[0].Path.Replace('\\', '/'))?.Replace('\\', '/');
+            if (string.IsNullOrEmpty(rigFolder)) return null;
+            var outResource = "Animations/Humanoid/" + Path.GetFileName(rigFolder);
+            var outFolder = Path.Combine(settings.path, outResource);
+            Directory.CreateDirectory(outFolder);
+            // The full model path (with .mdl): a bare name is looked up in the character manifest, which is written after this.
+            var model = modelResource.Replace('\\', '/');
+            var start = new System.Diagnostics.ProcessStartInfo("dotnet")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            foreach (var arg in new[] { settings.ToeCliPath, "--data", settings.path, "anim", "normalize_all", rigFolder, "--model", model, "--out", outFolder })
+                start.ArgumentList.Add(arg);
+            using (var process = System.Diagnostics.Process.Start(start))
+            {
+                var errorTask = process.StandardError.ReadToEndAsync();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                string error = errorTask.Result;
+                if (output.Length > 0) Debug.Log("[BatchExport] toe: " + output);
+                if (process.ExitCode != 0)
+                {
+                    Debug.LogError($"[BatchExport] toe anim normalize_all failed ({process.ExitCode}): {error}");
+                    failures++;
+                    return null;
+                }
+            }
+            return Directory.GetFiles(outFolder, "*.ani").Select(f => outResource + "/" + Path.GetFileName(f)).OrderBy(f => f, StringComparer.Ordinal).ToList();
+        }
+
         private static void WriteManifest(ExportSettings settings, string name, List<ModelEntry> models,
-            List<(string Name, string Path)> animations, string rootBone)
+            List<(string Name, string Path)> animations, string rootBone, Dictionary<string, string> humanBones, List<string> normalized)
         {
             string Q(string s) => "\"" + (s ?? string.Empty).Replace("\\", "/").Replace("\"", "\\\"") + "\"";
             var json = new StringBuilder();
             json.AppendLine("{");
             json.AppendLine($"  \"name\": {Q(name)},");
             json.AppendLine($"  \"rootBone\": {Q(rootBone)},");
+            if (humanBones != null) json.AppendLine("  \"humanBones\": " + HumanoidMapExporter.ToJson(humanBones, "  ") + ",");
             json.AppendLine("  \"models\": [");
             for (int i = 0; i < models.Count; i++)
             {
@@ -218,7 +332,15 @@ namespace UnityToRebelFork.Editor
                 json.Append($"    {Q(animations[i].Name)}: {Q(animations[i].Path)}");
                 json.AppendLine(i + 1 < animations.Count ? "," : string.Empty);
             }
-            json.AppendLine("  }");
+            if (normalized != null)
+            {
+                json.AppendLine("  },");
+                json.AppendLine($"  \"normalizedAnimations\": [{string.Join(", ", normalized.Select(Q))}]");
+            }
+            else
+            {
+                json.AppendLine("  }");
+            }
             json.AppendLine("}");
 
             using (var stream = settings.CreateFile($"Characters/{ExporterBase.SafeFileName(name)}.json"))

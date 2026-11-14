@@ -47,7 +47,8 @@ namespace UnityToRebelFork.Editor
         private UnityEngine.Shader GetFallbackShader(UnityEngine.Shader shader)
         {
             string shaderPath = AssetDatabase.GetAssetPath(shader);
-            if (string.IsNullOrEmpty(shaderPath))
+            // Built-in shaders have a path like "Library/unity default resources" that is not a file.
+            if (string.IsNullOrEmpty(shaderPath) || !System.IO.File.Exists(shaderPath))
             {
                 return null;
             }

@@ -19,9 +19,11 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IExporter, MaterialExporter>(nameof(MaterialExporter));
             container.RegisterSingleton<IExporter, PrefabExporter>(nameof(PrefabExporter));
             container.RegisterSingleton<IExporter, SceneExporter>(nameof(SceneExporter));
+            container.RegisterSingleton<IExporter, ParticleSystemExporter>(nameof(ParticleSystemExporter));
             container.RegisterSingleton<IExporter, TextureExporter>(nameof(TextureExporter));
             container.RegisterSingleton<IExporter, TextureRecipeExporter>(nameof(TextureRecipeExporter));
 
+            container.RegisterSingleton<IShaderMapping, ParticleShaderMapping>(nameof(ParticleShaderMapping));
             container.RegisterSingleton<IShaderMapping, TransparentShaderMapping>(nameof(TransparentShaderMapping));
             container.RegisterSingleton<IShaderMapping, ToonShaderMapping>(nameof(ToonShaderMapping));
             container.RegisterSingleton<IShaderMapping, MobileVertexLitShaderMapping>(nameof(MobileVertexLitShaderMapping));

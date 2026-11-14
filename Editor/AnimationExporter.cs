@@ -14,9 +14,12 @@ namespace UnityToRebelFork.Editor
         {
         }
 
+        private bool ShouldBake(UnityEngine.AnimationClip asset)
+            => context.HumanoidRig != null && (asset.humanMotion || context.BakeClipsOnRig);
+
         public override string EvaluateResourcePath(UnityEngine.AnimationClip asset)
         {
-            if (asset != null && asset.humanMotion && context.HumanoidRig != null)
+            if (asset != null && ShouldBake(asset))
                 return HumanoidClipBaker.EvaluateResourcePath(asset, context.HumanoidRig);
             return EvaluateResourcePath(asset, ".ani");
         }
@@ -25,10 +28,10 @@ namespace UnityToRebelFork.Editor
         {
             yield return asset.name;
 
-            if (asset.humanMotion && context.HumanoidRig != null)
+            if (ShouldBake(asset))
             {
                 // Humanoid clips hold muscle curves, not transforms: sample them on the target rig instead.
-                HumanoidClipBaker.Bake(asset, context.HumanoidRig, _settings, EvaluateResourcePath(asset));
+                HumanoidClipBaker.Bake(asset, context.HumanoidRig, _settings, EvaluateResourcePath(asset), generic: !asset.humanMotion);
                 yield break;
             }
 
@@ -103,7 +106,7 @@ namespace UnityToRebelFork.Editor
                     writer.Write(boneTracks.Count);
                     foreach (var track in boneTracks)
                     {
-                        writer.WriteStringSZ(track.BoneName);
+                        writer.WriteStringSZ(DecorateName(track.BoneName)); // As the bone is named in the model.
                         writer.Write(track.Mask);
                         writer.Write(track.Samples.Count);
                         for (var index = 0; index < track.Samples.Count; index++)

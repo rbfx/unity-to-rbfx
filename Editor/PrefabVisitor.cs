@@ -189,6 +189,10 @@ namespace UnityToRebelFork.Editor
             {
                 VisitLight(node, light);
             }
+            else if (component is ParticleSystem particleSystem)
+            {
+                VisitParticleSystem(node, particleSystem);
+            }
             else if (component is UnityEngine.Joint joint)
             {
                 VisitJoint(node, joint);
@@ -198,6 +202,17 @@ namespace UnityToRebelFork.Editor
                 VisitExportComponent(node, behaviour, exportComponent);
             }
             // Colliders and rigidbodies: VisitBody, once per game object.
+        }
+
+        /// <summary>A particle system becomes an emitter that plays its effect (see <see cref="ParticleSystemExporter"/>); the renderer is part of the effect.</summary>
+        private void VisitParticleSystem(Node node, ParticleSystem system)
+        {
+            // A sub emitter is a layer of the effect of its parent system.
+            if (ParticleSystemExporter.IsDrivenChild(system)) return;
+            var component = new ParticleGraphEmitter();
+            component.Effect = ResourceRef.Create<ParticleGraphEffect>(_orchestrator.Value.ScheduleExport(system));
+            component.IsEnabled = system.main.playOnAwake;
+            node.Components.Add(component);
         }
 
         private static ExportComponentAttribute GetExportComponent(MonoBehaviour behaviour)

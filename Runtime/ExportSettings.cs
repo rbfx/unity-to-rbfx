@@ -3,9 +3,25 @@ using System.IO;
 
 namespace UnityToRebelFork.Editor
 {
+    /// <summary>Which engine the export is for: Rbfx writes plain rbfx content, Toe adds the files only the Toe engine reads.</summary>
+    public enum ExportTarget
+    {
+        Rbfx,
+        Toe,
+    }
+
     [CreateAssetMenu(fileName = "RebelForkExportSettings", menuName = "RebelFork/ExportSettings", order = 1)]
     public class ExportSettings : ScriptableObject
     {
+        [Tooltip("Rbfx: plain rbfx content. Toe: also writes <model>.humanoid.json, humanBones in character manifests and effect reports.")]
+        public ExportTarget Target = ExportTarget.Rbfx;
+
+        [Tooltip("Toe only: normalize the exported humanoid clips with the toe CLI (anim normalize_all) into Animations/Humanoid/<rig>.")]
+        public bool NormalizeHumanoidClips = false;
+
+        [Tooltip("Toe only: path of toe.dll (src/Toe.Cli/bin/Release/net10.0/toe.dll). Normalization is skipped if empty.")]
+        public string ToeCliPath;
+
         [Tooltip("Data folder RebelFork project path")]
         public string path;
 
