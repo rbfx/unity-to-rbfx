@@ -67,10 +67,13 @@ namespace UnityToRebelFork.Editor
 
             sceneHasReflectionProbes = false;
             _warnedRooms = false;
+            _nodesByObject.Clear();
+            _pendingJoints.Clear();
             foreach (var gameObject in unityScene.GetRootGameObjects())
             {
                 scene.Children.Add(Visit(gameObject));
             }
+            ResolveJoints();
             CheckRooms(unityScene);
 
             // rbfx finds the probes of a scene through this component.
@@ -152,9 +155,12 @@ namespace UnityToRebelFork.Editor
             if (isRoot)
             {
                 uniqueIdCounter = 0;
+                _nodesByObject.Clear();
+                _pendingJoints.Clear();
             }
             var node = new Node();
             node.Id = ++uniqueIdCounter;
+            _nodesByObject[gameObject] = node;
             node.Position = gameObject.transform.localPosition;
             node.Rotation = gameObject.transform.localRotation;
             node.Scale = gameObject.transform.localScale;
@@ -206,6 +212,7 @@ namespace UnityToRebelFork.Editor
                 node.Children.Add(Visit(child.gameObject));
             }
 
+            if (isRoot) ResolveJoints();
             return node;
         }
 
@@ -553,9 +560,40 @@ namespace UnityToRebelFork.Editor
             node.Components.Add(body);
         }
 
+        // The nodes made so far by the object they came from, and the joints that still wait for the node of their connected body: that node may come
+        // after the joint's own (ids are given in the order of the walk).
+        private readonly Dictionary<GameObject, Node> _nodesByObject = new Dictionary<GameObject, Node>();
+        private readonly List<KeyValuePair<UnityToRebelFork.Editor.Constraint, GameObject>> _pendingJoints = new List<KeyValuePair<UnityToRebelFork.Editor.Constraint, GameObject>>();
+
+        /// <summary>A joint becomes an rbfx constraint on its node (see <see cref="JointExporter"/>); the node of the connected body is named once the whole tree exists.</summary>
         private void VisitJoint(Node node, Joint joint)
         {
+            var export = JointExporter.Export(joint, message => Debug.LogWarning("[PrefabVisitor] " + message, joint));
+            if (export == null) return;
+            node.Components.Add(export.Constraint);
+            if (export.Connected != null) _pendingJoints.Add(new KeyValuePair<UnityToRebelFork.Editor.Constraint, GameObject>(export.Constraint, export.Connected));
+        }
 
+        private void ResolveJoints()
+        {
+            foreach (var pending in _pendingJoints)
+            {
+                var constraint = pending.Key;
+                var connected = pending.Value;
+                if (!_nodesByObject.TryGetValue(connected, out var other))
+                {
+                    // Not part of what is exported (another prefab, or outside the scene): the joint goes to the world at the anchor, which is a world position then.
+                    Debug.LogWarning($"[PrefabVisitor] a joint is connected to {connected.name}, which is not exported with it; exported as a joint to the world", connected);
+                    constraint.OtherBodyNodeID = 0;
+                    constraint.OtherBodyPosition = connected.transform.TransformPoint(constraint.OtherBodyPosition);
+                    constraint.OtherBodyRotation = connected.transform.rotation * constraint.OtherBodyRotation;
+                    continue;
+                }
+                if (!other.Components.Any(_ => _ is GenericComponent g && g.TypeName == "RigidBody"))
+                    Debug.LogWarning($"[PrefabVisitor] a joint is connected to {connected.name}, which exports no RigidBody", connected);
+                constraint.OtherBodyNodeID = other.Id;
+            }
+            _pendingJoints.Clear();
         }
 
         private void VisitSkinnedMeshRenderer(Node node, UnityEngine.SkinnedMeshRenderer skinnedMeshRenderer)
