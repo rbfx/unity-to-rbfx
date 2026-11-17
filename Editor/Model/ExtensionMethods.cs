@@ -67,7 +67,8 @@ namespace UnityToRebelFork.Editor
                 case VariantType.VarInt64: return "Int64";
                 case VariantType.VarCustom: return "Custom";
                 case VariantType.VarStringvariantmap: return "StringVariantMap";
-                case VariantType.VarVariantList: return "VariantList";
+                // The name rbfx (and Toe) give a list of variants in a scene file.
+                case VariantType.VarVariantList: return "VariantVector";
                 //case VariantType.VaVe: return "VariantVector";
                 //case VariantType.VarM: return "VariantMap";
                 //case VariantType.VariantCurve: return "VariantCurve";

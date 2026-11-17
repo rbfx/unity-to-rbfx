@@ -66,10 +66,12 @@ namespace UnityToRebelFork.Editor
             scene.Id = ++uniqueIdCounter;
 
             sceneHasReflectionProbes = false;
+            _warnedRooms = false;
             foreach (var gameObject in unityScene.GetRootGameObjects())
             {
                 scene.Children.Add(Visit(gameObject));
             }
+            CheckRooms(unityScene);
 
             // rbfx finds the probes of a scene through this component.
             if (sceneHasReflectionProbes && !scene.Components.Any(_ => _ is ReflectionProbeManager))
@@ -268,6 +270,18 @@ namespace UnityToRebelFork.Editor
             {
                 VisitReflectionProbe(node, reflectionProbe);
             }
+            else if (component is VisibilityRoom room)
+            {
+                VisitVisibilityRoom(node, room);
+            }
+            else if (component is VisibilityPortal portal)
+            {
+                VisitVisibilityPortal(node, portal);
+            }
+            else if (component is VisibilityRoomBox)
+            {
+                // Part of the room above it: exported with that room's boxes.
+            }
             else if (component is UnityEngine.Joint joint)
             {
                 VisitJoint(node, joint);
@@ -355,6 +369,71 @@ namespace UnityToRebelFork.Editor
 
             sceneHasReflectionProbes = true;
             node.Components.Add(component);
+        }
+
+        private bool _warnedRooms;
+
+        /// <summary>Rooms and portals are Toe's (the portal culling of its pipelines): the Rbfx target skips them, with one warning for the scene.</summary>
+        private bool RoomsSupported(UnityEngine.Component source)
+        {
+            if (!(_settings is null) && _settings.Target == ExportTarget.Toe) return true;
+            if (!_warnedRooms)
+            {
+                _warnedRooms = true;
+                Debug.LogWarning($"[Rooms] '{source.name}' and the other visibility rooms and portals are exported for the Toe target only; the Rbfx export leaves them out.", source);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// A room becomes Toe's <c>VisibilityRoom</c>: its own box and the boxes of the <see cref="VisibilityRoomBox"/>es below it, in the room node's
+        /// space before the node's scale (the engine scales a box by its node), with the priority.
+        /// </summary>
+        private void VisitVisibilityRoom(Node node, VisibilityRoom room)
+        {
+            if (!room.enabled || !RoomsSupported(room)) return;
+
+            var boxes = new List<RoomBoxData>();
+            room.CollectExportBoxes(boxes, out _, out var inexact);
+            if (boxes.Count == 0)
+            {
+                Debug.LogWarning($"[Rooms] Room '{room.name}' has no box of any size and is not exported.", room);
+                return;
+            }
+            if (inexact > 0)
+                Debug.LogWarning($"[Rooms] Room '{room.name}': {inexact} turned box(es) under a room scaled differently along its axes cannot be held by the engine and are exported as their unrotated bounds.", room);
+
+            node.Components.Add(RoomExport.RoomComponent(room.priority, boxes));
+        }
+
+        /// <summary>A portal becomes Toe's <c>Portal</c> (a disabled component exports as closed) and the node gets a StableId, so game code finds its doors.</summary>
+        private void VisitVisibilityPortal(Node node, VisibilityPortal portal)
+        {
+            if (!RoomsSupported(portal)) return;
+            node.Components.Add(RoomExport.PortalComponent(portal.size, portal.enabled && portal.isOpen));
+            if (!node.Components.Any(_ => _ is GenericComponent g && g.TypeName == "StableId"))
+                node.Components.Add(RoomExport.StableIdComponent(StableIdOf(portal.gameObject)));
+        }
+
+        /// <summary>What is wrong with the rooms and portals of a scene (the checks of the engine's <c>rooms check</c>), as warnings in the console.</summary>
+        private void CheckRooms(UnityEngine.SceneManagement.Scene unityScene)
+        {
+            if (_settings is null || _settings.Target != ExportTarget.Toe) return;
+            var rooms = new List<VisibilityRoom>();
+            var portals = new List<VisibilityPortal>();
+            foreach (var root in unityScene.GetRootGameObjects())
+            {
+                rooms.AddRange(root.GetComponentsInChildren<VisibilityRoom>(false));
+                portals.AddRange(root.GetComponentsInChildren<VisibilityPortal>(false));
+            }
+            if (rooms.Count == 0 && portals.Count == 0) return;
+
+            var shapes = VisibilityScene.ShapesOf(rooms);
+            var sides = new List<KeyValuePair<string, PortalSides>>();
+            foreach (var portal in portals)
+                sides.Add(new KeyValuePair<string, PortalSides>(portal.name, VisibilityMath.SidesOf(VisibilityFrame.Of(portal.transform))));
+            foreach (var warning in VisibilityMath.Check(shapes, sides)) Debug.LogWarning("[Rooms] " + warning);
+            Debug.Log($"[Rooms] {shapes.Count} room(s) and {portals.Count} portal(s) exported.");
         }
 
         private static ExportComponentAttribute GetExportComponent(MonoBehaviour behaviour)

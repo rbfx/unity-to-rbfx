@@ -52,13 +52,40 @@ namespace UnityToRebelFork.Editor
             var value = Get(instance);
             if (value != _defaultValue)
             {
-                return new XElement(PrefabSceneSerializer.XNames.attribute,
+                var attribute = new XElement(PrefabSceneSerializer.XNames.attribute,
                     new XAttribute(PrefabSceneSerializer.XNames.name, _name),
-                    new XAttribute(PrefabSceneSerializer.XNames.type, _type.GetName()),
-                    new XAttribute(PrefabSceneSerializer.XNames.value, value.ToString()));
+                    new XAttribute(PrefabSceneSerializer.XNames.type, _type.GetName()));
+                WriteValue(attribute, value);
+                return attribute;
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// A simple value is the <c>value</c> attribute; a list of variants is <c>&lt;value&gt;&lt;element type="..." value="..."/&gt;...&lt;/value&gt;</c>
+        /// (an element that is a list holds its own <c>value</c> element), as rbfx writes a scene.
+        /// </summary>
+        public static void WriteValue(XElement holder, Variant value)
+        {
+            if (value.Type != VariantType.VarVariantList)
+            {
+                holder.Add(new XAttribute(PrefabSceneSerializer.XNames.value, value.ToString()));
+                return;
+            }
+
+            var items = new XElement(PrefabSceneSerializer.XNames.value);
+            var list = value.VariantList;
+            if (list != null)
+            {
+                foreach (var item in list)
+                {
+                    var element = new XElement(XName.Get("element"), new XAttribute(PrefabSceneSerializer.XNames.type, item.Type.GetName()));
+                    WriteValue(element, item);
+                    items.Add(element);
+                }
+            }
+            holder.Add(items);
         }
     }
 
