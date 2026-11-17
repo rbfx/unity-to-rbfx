@@ -13,6 +13,13 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<ExportOrchestrator>();
             
             //Container.Bind<IExporter>().To(_=>_.AllTypes().DerivingFrom<IExporter>().FromThisAssembly()).AsCached();
+
+            // The orchestrator asks the exporters in the order of their registration names and takes the first that can export the asset. These take only what they
+            // know (Toe target, sprites and audio), but AnimationExporter takes every AnimationClip and TextureExporter every Texture: the "0" puts these first.
+            container.RegisterSingleton<IExporter, SpriteSheetExporter>("0" + nameof(SpriteSheetExporter));
+            container.RegisterSingleton<IExporter, SpriteAnimationExporter>("0" + nameof(SpriteAnimationExporter));
+            container.RegisterSingleton<IExporter, AudioClipExporter>("0" + nameof(AudioClipExporter));
+
             container.RegisterSingleton<IExporter, AnimationExporter>(nameof(AnimationExporter));
             container.RegisterSingleton<IExporter, MeshExporter>(nameof(MeshExporter));
             container.RegisterSingleton<IExporter, MeshReferenceExporter>(nameof(MeshReferenceExporter));

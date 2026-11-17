@@ -84,7 +84,7 @@ namespace UnityToRebelFork.Editor
             {
                 if (script != null && script.Target == ExportTarget.Rbfx
                     && (property.name == nameof(ExportSettings.NormalizeHumanoidClips) || property.name == nameof(ExportSettings.ToeCliPath)
-                        || property.name == nameof(ExportSettings.PrefilterCubemaps)))
+                        || property.name == nameof(ExportSettings.PrefilterCubemaps) || property.name == nameof(ExportSettings.EncodeAudio)))
                     continue;
                 using (new EditorGUI.DisabledScope(property.name == "m_Script"))
                     EditorGUILayout.PropertyField(property, true);
