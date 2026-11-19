@@ -51,3 +51,17 @@ Mip levels: for the **Rbfx** target Unity's own (roughness-blurred) mips are wri
 filtering them. For the **Toe** target the file has level 0 plus averaged mips and Toe makes the roughness chain itself when a game first uses the cube map;
 a batch export with `-toe <path of toe.dll>` (setting `PrefilterCubemaps`, default on) has the Toe CLI bake that chain into the files instead
 (`cubemap prefilter <xml>... --in-place`), so nothing is filtered at load.
+
+# Terrains
+
+A scene or prefab export writes each Unity `Terrain` as a child node (at the terrain's centre: rbfx centres a terrain on its node, Unity starts at the corner) with an
+rbfx `Terrain` component. Next to the asset of its `TerrainData` it writes:
+
+- `<name>_height.png`: the height map, 16 bits as red (high byte) and green (low byte) of an RGB picture, the first row the north edge. The component's `Vertex Spacing`
+  is `size / (heightmapResolution - 1)` across and `size.y * 256 / 65535` high, `Patch Size` is 32 (the whole terrain when smaller).
+- `<name>_weights.png`: the weights of the first three layers (normalised) as red, green and blue.
+- `<name>.material`: the blend material (`Techniques/TerrainBlend.xml`: the weights in the albedo slot, the layers' diffuse textures in the normal, properties and
+  emission slots, `DetailTiling` = terrain size / the first layer's tile size).
+
+Not exported (each logs a warning): more than three layers, layers with different tile sizes, holes, tree instances, grass and detail meshes. A `TerrainCollider` only
+adds a collision shape of type Terrain, which Toe has no shape for. The numbers are worked out by `Editor/Terrain/TerrainConverter.cs`, which does not use Unity.

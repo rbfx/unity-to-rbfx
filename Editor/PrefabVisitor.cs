@@ -273,6 +273,10 @@ namespace UnityToRebelFork.Editor
             {
                 VisitParticleSystem(node, particleSystem);
             }
+            else if (component is UnityEngine.Terrain terrain)
+            {
+                VisitTerrain(node, terrain);
+            }
             else if (component is UnityEngine.ReflectionProbe reflectionProbe)
             {
                 VisitReflectionProbe(node, reflectionProbe);
@@ -298,6 +302,38 @@ namespace UnityToRebelFork.Editor
                 VisitExportComponent(node, behaviour, exportComponent);
             }
             // Colliders and rigidbodies: VisitBody, once per game object.
+        }
+
+        /// <summary>
+        /// A Unity terrain becomes a child node with rbfx's Terrain component (see <see cref="TerrainExporter"/>). Unity's terrain starts at its corner and rbfx's is
+        /// centred on its node, so the component sits on a child node at the terrain's centre. A TerrainCollider on the same object is visited with the colliders.
+        /// </summary>
+        private void VisitTerrain(Node node, UnityEngine.Terrain terrain)
+        {
+            var data = terrain.terrainData;
+            if (data == null) return;
+            var heightPath = _orchestrator.Value.ScheduleExport(data);
+            if (string.IsNullOrEmpty(heightPath)) return;
+
+            var size = data.size;
+            var layout = Terrains.TerrainConverter.Layout(data.heightmapResolution, size.x, size.y, size.z);
+            foreach (var warning in layout.Warnings)
+                Debug.LogWarning($"[Terrain] '{terrain.name}': {warning}.", terrain);
+
+            var component = new Terrain();
+            component.IsEnabled = terrain.enabled && terrain.drawHeightmap;
+            component.HeightMap = new ResourceRef("Image", heightPath);
+            component.Material = ResourceRef.Create<Material>(TerrainExporter.MaterialPath(heightPath));
+            component.VertexSpacing = new Vector3(layout.SpacingX, layout.SpacingY, layout.SpacingZ);
+            component.PatchSize = layout.PatchSize;
+            component.CastShadows = terrain.shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            var child = new Node();
+            child.Id = ++uniqueIdCounter;
+            child.Name = "Terrain";
+            child.Position = new Vector3(layout.CenterX, 0f, layout.CenterZ);
+            child.Components.Add(component);
+            node.Children.Add(child);
         }
 
         /// <summary>A particle system becomes an emitter that plays its effect (see <see cref="ParticleSystemExporter"/>); the renderer is part of the effect.</summary>
