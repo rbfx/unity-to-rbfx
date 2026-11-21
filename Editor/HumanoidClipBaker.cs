@@ -59,7 +59,9 @@ namespace UnityToRebelFork.Editor
                     throw new System.InvalidOperationException($"{rig.name} has no Animator with a humanoid avatar to bake {clip.name} on.");
                 if (animator != null) animator.applyRootMotion = false;
                 var sampleTarget = animator != null ? animator.gameObject : instance;
-                var meshSpace = generic ? (instance.GetComponentInChildren<SkinnedMeshRenderer>(true)?.transform.worldToLocalMatrix ?? Matrix4x4.identity) : Matrix4x4.identity;
+                // The space of the skinned mesh before the clip moves anything: the exported model has its bones in it, so whatever lies above the
+                // top-level bones (a biped's root dummy, the armature of a Blender file) is part of them, in the clip as in the bind pose.
+                var meshSpace = instance.GetComponentInChildren<SkinnedMeshRenderer>(true)?.transform.worldToLocalMatrix ?? Matrix4x4.identity;
 
                 var bones = CollectBones(instance);
                 float frameRate = clip.frameRate > 0f ? clip.frameRate : 30f;
@@ -70,8 +72,8 @@ namespace UnityToRebelFork.Editor
 
                 var samples = bones.ToDictionary(b => b, _ => new List<(float, Vector3, Quaternion, Vector3)>());
                 // Humanoid root motion moves the instance (the bones' parents), not the bones. The top-level bones are
-                // recorded relative to where their parent was at the first frame, so the motion stays in their tracks;
-                // clips without root motion come out as plain local transforms.
+                // recorded in the space the skinned mesh had before the clip, so the motion stays in their tracks and so does what lies above
+                // them; clips without root motion come out as the bone's transform in the bind pose's space.
                 var topLevel = bones.Where(b => b.parent == null || !bones.Contains(b.parent)).ToList();
                 var reference = new Dictionary<Transform, Matrix4x4>();
                 AnimationMode.StartAnimationMode();
@@ -85,11 +87,11 @@ namespace UnityToRebelFork.Editor
                         if (reference.Count == 0)
                         {
                             foreach (var bone in topLevel)
-                                reference[bone] = generic ? meshSpace : bone.parent != null ? bone.parent.worldToLocalMatrix : Matrix4x4.identity;
+                                reference[bone] = meshSpace;
                         }
                         foreach (var bone in bones)
                         {
-                            if (reference.TryGetValue(bone, out var toStart) && (generic || bone.parent != null))
+                            if (reference.TryGetValue(bone, out var toStart))
                             {
                                 var local = toStart * bone.localToWorldMatrix;
                                 samples[bone].Add((t, local.GetColumn(3), local.rotation, generic ? local.lossyScale : bone.localScale));
