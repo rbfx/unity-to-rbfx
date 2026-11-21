@@ -60,6 +60,12 @@ namespace UnityToRebelFork.Editor.Terrains
         /// <summary>How many layers the weights hold (1 to 3).</summary>
         public int UsedLayers;
 
+        /// <summary>The terrain's layer (its index in the Unity terrain) of each slot of the weights picture: red, green, blue. Length UsedLayers.</summary>
+        public int[] LayerOrder = new int[0];
+
+        /// <summary>The share of the terrain each layer of the Unity terrain paints (the sum of its weights over the pixels, divided by the number of pixels).</summary>
+        public float[] LayerCoverage = new float[0];
+
         public List<string> Warnings = new List<string>();
     }
 
@@ -147,9 +153,18 @@ namespace UnityToRebelFork.Editor.Terrains
                 return;
             }
 
-            int used = Math.Min(3, layers);
+            var order = ChooseLayers(source, out var coverage);
+            int used = order.Length;
             result.UsedLayers = used;
-            if (layers > 3) result.Warnings.Add($"the terrain has {layers} layers; the blend material takes three, so only the first three are exported");
+            result.LayerOrder = order;
+            result.LayerCoverage = coverage;
+            if (layers > 3)
+            {
+                float taken = 0f;
+                foreach (int layer in order) taken += coverage[layer];
+                result.Warnings.Add($"the terrain has {layers} layers; the blend material takes three, so only the three most used are exported "
+                                    + $"(layers {string.Join(", ", order)}, painting {taken * 100f:0.#} % of the terrain" + (taken < 0.9f ? "; the others hold the rest" : "") + ")");
+            }
 
             result.WeightsSize = size;
             result.WeightsRgb = new byte[size * size * 3];
@@ -159,11 +174,11 @@ namespace UnityToRebelFork.Editor.Terrains
                 for (int x = 0; x < size; x++)
                 {
                     int a = (z * size + x) * layers;
-                    float r = source.Alphamaps[a];
-                    float g = used > 1 ? source.Alphamaps[a + 1] : 0f;
-                    float b = used > 2 ? source.Alphamaps[a + 2] : 0f;
+                    float r = source.Alphamaps[a + order[0]];
+                    float g = used > 1 ? source.Alphamaps[a + order[1]] : 0f;
+                    float b = used > 2 ? source.Alphamaps[a + order[2]] : 0f;
                     float sum = r + g + b;
-                    if (sum < 1e-5f) { r = 1f; g = 0f; b = 0f; sum = 1f; } // Only later layers here: show the first.
+                    if (sum < 1e-5f) { r = 1f; g = 0f; b = 0f; sum = 1f; } // Only layers that are not exported here: show the first.
                     int o = (row * size + x) * 3;
                     int wr = (int)Math.Round(255f * r / sum);
                     int wg = (int)Math.Round(255f * g / sum);
@@ -173,11 +188,11 @@ namespace UnityToRebelFork.Editor.Terrains
                 }
             }
 
-            // One DetailTiling for the three detail textures: the first layer's tile size, the others are different only if their size is.
-            float tx = TileOf(source, 0, 0), ty = TileOf(source, 0, 1);
+            // One DetailTiling for the three detail textures: the first exported layer's tile size, the others are different only if their size is.
+            float tx = TileOf(source, order[0], 0), ty = TileOf(source, order[0], 1);
             for (int i = 1; i < used; i++)
             {
-                if (Math.Abs(TileOf(source, i, 0) - tx) > 1e-3f * tx || Math.Abs(TileOf(source, i, 1) - ty) > 1e-3f * ty)
+                if (Math.Abs(TileOf(source, order[i], 0) - tx) > 1e-3f * tx || Math.Abs(TileOf(source, order[i], 1) - ty) > 1e-3f * ty)
                 {
                     result.Warnings.Add("the layers have different tile sizes; the first layer's is used for all");
                     break;
@@ -186,6 +201,39 @@ namespace UnityToRebelFork.Editor.Terrains
 
             result.DetailTilingX = source.SizeX / tx;
             result.DetailTilingY = source.SizeZ / ty;
+        }
+
+        /// <summary>
+        /// The layers the blend material takes, the most used first: the three whose weights add up to the most over the terrain (ties keep the lower index). A terrain with
+        /// three layers or fewer keeps all of them in their own order. <paramref name="coverage"/> is the share of the terrain each layer paints.
+        /// </summary>
+        public static int[] ChooseLayers(TerrainSourceData source, out float[] coverage)
+        {
+            int layers = source.LayerCount;
+            int pixels = source.AlphamapResolution * source.AlphamapResolution;
+            coverage = new float[Math.Max(0, layers)];
+            if (layers <= 0 || pixels <= 0 || source.Alphamaps == null || source.Alphamaps.Length < pixels * layers) return new int[0];
+
+            var totals = new double[layers];
+            for (int p = 0; p < pixels; p++)
+                for (int l = 0; l < layers; l++)
+                    totals[l] += source.Alphamaps[p * layers + l];
+            for (int l = 0; l < layers; l++)
+                coverage[l] = (float)(totals[l] / pixels);
+
+            var order = new List<int>();
+            for (int l = 0; l < layers; l++) order.Add(l);
+            if (layers > 3)
+            {
+                // Stable: List.Sort is not, so the index breaks the ties.
+                order.Sort((a, b) =>
+                {
+                    int c = totals[b].CompareTo(totals[a]);
+                    return c != 0 ? c : a.CompareTo(b);
+                });
+                order.RemoveRange(3, order.Count - 3);
+            }
+            return order.ToArray();
         }
 
         private static float TileOf(TerrainSourceData source, int layer, int axis)

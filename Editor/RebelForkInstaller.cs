@@ -33,6 +33,7 @@ namespace UnityToRebelFork.Editor
             container.RegisterSingleton<IExporter, CubemapExporter>(nameof(CubemapExporter));
 
             container.RegisterSingleton<IShaderMapping, ParticleShaderMapping>(nameof(ParticleShaderMapping));
+            container.RegisterSingleton<IShaderMapping, ShaderGraphShaderMapping>(nameof(ShaderGraphShaderMapping));
             container.RegisterSingleton<IShaderMapping, TransparentShaderMapping>(nameof(TransparentShaderMapping));
             container.RegisterSingleton<IShaderMapping, ToonShaderMapping>(nameof(ToonShaderMapping));
             container.RegisterSingleton<IShaderMapping, MobileVertexLitShaderMapping>(nameof(MobileVertexLitShaderMapping));

@@ -156,6 +156,7 @@ namespace UnityToRebelFork.Editor
             {
                 uniqueIdCounter = 0;
                 _nodesByObject.Clear();
+                _terrainNodes.Clear();
                 _pendingJoints.Clear();
             }
             var node = new Node();
@@ -320,6 +321,15 @@ namespace UnityToRebelFork.Editor
             foreach (var warning in layout.Warnings)
                 Debug.LogWarning($"[Terrain] '{terrain.name}': {warning}.", terrain);
 
+            // Unity places a terrain by its world position only: rotation and scale of its object and of its parents are ignored. The node it stands on must not turn or
+            // scale the centre offset below, so its transform cancels the parents' rotation and scale.
+            var transform = terrain.transform;
+            if (Quaternion.Angle(transform.localRotation, Quaternion.identity) > 0.01f || (transform.localScale - Vector3.one).sqrMagnitude > 1e-8f)
+                Debug.LogWarning($"[Terrain] '{terrain.name}': Unity ignores the rotation and scale of a terrain's object; they are not exported.", terrain);
+            TerrainNodePlacement(transform, out var placementRotation, out var placementScale);
+            node.Rotation = placementRotation;
+            node.Scale = placementScale;
+
             var component = new Terrain();
             component.IsEnabled = terrain.enabled && terrain.drawHeightmap;
             component.HeightMap = new ResourceRef("Image", heightPath);
@@ -334,7 +344,30 @@ namespace UnityToRebelFork.Editor
             child.Position = new Vector3(layout.CenterX, 0f, layout.CenterZ);
             child.Components.Add(component);
             node.Children.Add(child);
+            // The terrain collider's shape reads the height field of the Terrain component of its own node: it goes to this node (see VisitBody).
+            _terrainNodes[terrain.gameObject] = child;
         }
+
+        /// <summary>
+        /// The rotation and scale of the node of a terrain's object that make its world transform a translation: Unity ignores the rotation and scale of a terrain, so
+        /// the node cancels those of its parents (the node's own position is relative to the parent and keeps the world position).
+        /// </summary>
+        public static void TerrainNodePlacement(Transform terrainTransform, out Quaternion rotation, out Vector3 scale)
+        {
+            var parent = terrainTransform.parent;
+            if (parent == null)
+            {
+                rotation = Quaternion.identity;
+                scale = Vector3.one;
+                return;
+            }
+            rotation = Quaternion.Inverse(parent.rotation);
+            var s = parent.lossyScale;
+            scale = new Vector3(Mathf.Abs(s.x) > 1e-6f ? 1f / s.x : 1f, Mathf.Abs(s.y) > 1e-6f ? 1f / s.y : 1f, Mathf.Abs(s.z) > 1e-6f ? 1f / s.z : 1f);
+        }
+
+        /// <summary>The node that holds the Terrain component of each terrain object (a child of the object's node, at the terrain's centre).</summary>
+        private readonly Dictionary<GameObject, Node> _terrainNodes = new Dictionary<GameObject, Node>();
 
         /// <summary>A particle system becomes an emitter that plays its effect (see <see cref="ParticleSystemExporter"/>); the renderer is part of the effect.</summary>
         private void VisitParticleSystem(Node node, ParticleSystem system)
@@ -572,6 +605,22 @@ namespace UnityToRebelFork.Editor
                 colliders.Add(collider);
             }
             var scale = gameObject.transform.lossyScale;
+
+            // The shape of a terrain collider reads the height field of the Terrain component on its own node, which is the child at the terrain's centre.
+            if (_terrainNodes.TryGetValue(gameObject, out var terrainNode))
+            {
+                var terrainColliders = colliders.Where(_ => _ is TerrainCollider).ToList();
+                if (terrainColliders.Count > 0)
+                {
+                    AddBody(terrainNode, gameObject, terrainColliders, null, settings, scale);
+                    colliders.RemoveAll(_ => terrainColliders.Contains(_));
+                }
+            }
+            AddBody(node, gameObject, colliders, rigidbody, settings, scale);
+        }
+
+        private void AddBody(Node node, GameObject gameObject, List<Collider> colliders, Rigidbody rigidbody, ExportBody settings, Vector3 scale)
+        {
             var shapes = colliders.Select(_ => VisitCollisionShape(_, scale)).Where(_ => _ != null).ToList();
             if (shapes.Count == 0 && rigidbody == null) return;
             foreach (var shape in shapes) node.Components.Add(shape);

@@ -54,13 +54,15 @@ namespace UnityToRebelFork.Editor
                     material.SetVector("_AChannelMask", asset.AMask);
                 }
 
+                material.SetFloat("_ToGamma", asset.ToGamma ? 1.0f : 0.0f);
+
                 int width = 1;
                 int height = 1;
                 UnityEngine.Texture sourceTexture = null;
                 foreach (var texture in new []{asset.RChannel, asset.GChannel, asset.BChannel, asset.AChannel}.Where(_=>_!=null))
                 {
                     width = Math.Max(width, texture.width);
-                    height = Math.Max(height, texture.width);
+                    height = Math.Max(height, texture.height);
                     if (sourceTexture == null)
                         sourceTexture = texture;
                 }

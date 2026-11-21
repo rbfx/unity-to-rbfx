@@ -11,7 +11,7 @@ namespace UnityToRebelFork.Editor
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return Equals(RChannel, other.RChannel) && RSourceRange.Equals(other.RSourceRange) && RDestinationRange.Equals(other.RDestinationRange) && RMask.Equals(other.RMask) && Equals(GChannel, other.GChannel) && GSourceRange.Equals(other.GSourceRange) && GDestinationRange.Equals(other.GDestinationRange) && GMask.Equals(other.GMask) && Equals(BChannel, other.BChannel) && BSourceRange.Equals(other.BSourceRange) && BDestinationRange.Equals(other.BDestinationRange) && BMask.Equals(other.BMask) && Equals(AChannel, other.AChannel) && ASourceRange.Equals(other.ASourceRange) && ADestinationRange.Equals(other.ADestinationRange) && AMask.Equals(other.AMask);
+            return ToGamma == other.ToGamma && Equals(RChannel, other.RChannel) && RSourceRange.Equals(other.RSourceRange) && RDestinationRange.Equals(other.RDestinationRange) && RMask.Equals(other.RMask) && Equals(GChannel, other.GChannel) && GSourceRange.Equals(other.GSourceRange) && GDestinationRange.Equals(other.GDestinationRange) && GMask.Equals(other.GMask) && Equals(BChannel, other.BChannel) && BSourceRange.Equals(other.BSourceRange) && BDestinationRange.Equals(other.BDestinationRange) && BMask.Equals(other.BMask) && Equals(AChannel, other.AChannel) && ASourceRange.Equals(other.ASourceRange) && ADestinationRange.Equals(other.ADestinationRange) && AMask.Equals(other.AMask);
         }
 
         public override bool Equals(object obj)
@@ -24,7 +24,8 @@ namespace UnityToRebelFork.Editor
 
         public override int GetHashCode()
         {
-            return Helpers.CombineHashCodes(
+            // ToGamma joins the hash only when set, so the names of the recipes that exist already do not change.
+            var hash = Helpers.CombineHashCodes(
                 RChannel,
                 RSourceRange,
                 RDestinationRange,
@@ -41,6 +42,7 @@ namespace UnityToRebelFork.Editor
                 ASourceRange,
                 ADestinationRange,
                 AMask);
+            return ToGamma ? hash * 31 + 1 : hash;
         }
 
         public static bool operator ==(TextureRecipe left, TextureRecipe right)
@@ -52,6 +54,12 @@ namespace UnityToRebelFork.Editor
         {
             return !Equals(left, right);
         }
+
+        /// <summary>
+        /// The red, green and blue channels are colour: the result (after the ranges) is encoded from linear to gamma space, as <c>Hidden/UnityToRebelFork/Copy</c> does for an albedo
+        /// texture of a linear colour space project. A channel without a texture is a constant: give it any texture with a zero mask and a destination range (c, c).
+        /// </summary>
+        public bool ToGamma;
 
         public UnityEngine.Texture RChannel;
         public Vector2 RSourceRange = new Vector2(0, 1);

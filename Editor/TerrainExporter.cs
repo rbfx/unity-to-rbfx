@@ -8,7 +8,7 @@ namespace UnityToRebelFork.Editor
 {
     /// <summary>
     /// Exports a Unity TerrainData for rbfx's <c>Terrain</c> component (and Toe's, which reads the same attributes): the height map as a 16-bit RGB PNG
-    /// (red the high byte, green the low byte, the first row the north edge), the weights picture of the first three layers as an RGB PNG and the blend material
+    /// (red the high byte, green the low byte, the first row the north edge), the weights picture of the three most used layers as an RGB PNG and the blend material
     /// (<c>Techniques/TerrainBlend.xml</c>: the weights in the albedo slot, the layers' textures in the normal, properties and emission slots, <c>DetailTiling</c>).
     /// The numbers are worked out by <see cref="TerrainConverter"/>, which does not use Unity. The three files sit next to each other: <c>Name_height.png</c>,
     /// <c>Name_weights.png</c> and <c>Name.material</c>; <see cref="PrefabVisitor"/> asks for the height map's path and derives the others.
@@ -76,7 +76,9 @@ namespace UnityToRebelFork.Editor
             string[] slots = { "Normal", "Properties", "Emission" };
             for (int i = 0; i < result.UsedLayers && layers != null && i < layers.Length; i++)
             {
-                var texture = layers[i] != null ? layers[i].diffuseTexture : null;
+                int layerIndex = i < result.LayerOrder.Length ? result.LayerOrder[i] : i;
+                var layer = layerIndex < layers.Length ? layers[layerIndex] : null;
+                var texture = layer != null ? layer.diffuseTexture : null;
                 if (texture == null) continue;
                 var path = _orchestrator.Value.ScheduleExport(texture);
                 if (!string.IsNullOrEmpty(path)) model.Textures[slots[i]] = path;

@@ -17,6 +17,8 @@ Shader "Hidden/RebelFork/BuildTexture"
         _AChannelMap("A Channel Texture", 2D) = "white" {}
         _AChannelRanges("A Channel Ranges", Vector) = (0,1,0,1)
         _AChannelMask("A Channel Mask", Vector) = (0,0,0,1)
+
+        [Toggle] _ToGamma("Encode RGB from linear to gamma", Float) = 0
     }
     SubShader
     {
@@ -67,6 +69,8 @@ Shader "Hidden/RebelFork/BuildTexture"
             float4 _AChannelRanges;
             float4 _AChannelMask;
 
+            float _ToGamma;
+
             float4 MapColorChannel (float4 src, float4 mask, float4 ranges)
             {
                 float value = dot(src, mask);
@@ -80,6 +84,12 @@ Shader "Hidden/RebelFork/BuildTexture"
                 float g = MapColorChannel(tex2D(_GChannelMap, i.uv), _GChannelMask, _GChannelRanges);
                 float b = MapColorChannel(tex2D(_BChannelMap, i.uv), _BChannelMask, _BChannelRanges);
                 float a = MapColorChannel(tex2D(_AChannelMap, i.uv), _AChannelMask, _AChannelRanges);
+                if (_ToGamma > 0.5)
+                {
+                    r = LinearToGammaSpaceExact(max(r, 0));
+                    g = LinearToGammaSpaceExact(max(g, 0));
+                    b = LinearToGammaSpaceExact(max(b, 0));
+                }
                 return fixed4(r,g,b,a);
             }
             ENDCG
