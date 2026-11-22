@@ -3,7 +3,8 @@
     "rootNamespace": "",
     "references": [
         "UnityToRebelFork",
-        "UnityToRebelFork.Editor"
+        "UnityToRebelFork.Editor",
+        "UnityToRebelFork.Tests.Fakes"
     ],
     "optionalUnityReferences": [
       "TestAssemblies"
@@ -13,8 +14,11 @@
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],

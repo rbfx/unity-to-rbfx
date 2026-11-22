@@ -27,6 +27,8 @@ namespace UnityToRebelFork.Editor
     /// their materials and textures, the clips (FBX files or animation clips) are baked onto its skeleton, and
     /// Characters/&lt;name&gt;.json lists what was written. Each prop (a prefab, or the root object of a model file) is exported
     /// as a prefab at the path of its asset (see <see cref="PrefabExporter"/>), with the meshes, materials and textures it uses.
+    /// Toe target: the Jiggle Chain and Jiggle Collider components on the character's prefab are written as the "jiggle" section of Characters/&lt;name&gt;.json (see <see cref="JiggleExport"/>),
+    /// and the Magica Cloth 2 components as its "cloth" section (see <see cref="ClothExport"/>; read by reflection, Magica Cloth 2 is no dependency).
     /// The editor exits with 1 if anything failed.
     /// </summary>
     public static class BatchExport
@@ -219,7 +221,9 @@ namespace UnityToRebelFork.Editor
                 PrefilterCubemaps(settings, context.CubemapsToPrefilter, ref failures);
             if (toe && context.AudioToEncode.Count > 0)
                 EncodeAudio(settings, context.AudioToEncode, ref failures);
-            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized);
+            string jiggle = character != null ? JiggleSection(character, toe) : null;
+            string cloth = character != null ? ClothSection(character, toe) : null;
+            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized, jiggle, cloth);
             if (toe && !string.IsNullOrEmpty(effectList)) WriteEffectReport(settings, context, System.IO.Path.GetFileNameWithoutExtension(effectList));
             bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0 || missingSprites > 0 || missingAudio > 0;
             return failures == 0 && !missing ? 0 : 1;
@@ -466,8 +470,44 @@ namespace UnityToRebelFork.Editor
             }
         }
 
+        /// <summary>
+        /// The <c>jiggle</c> section of the character manifest: the Jiggle Chain and Jiggle Collider components on the prefab (<see cref="JiggleExport"/>), for the Toe target. The Rbfx
+        /// target leaves them out with one warning. Null when there are none.
+        /// </summary>
+        private static string JiggleSection(GameObject character, bool toe)
+        {
+            var chains = new List<JiggleChainData>();
+            var colliders = new List<JiggleColliderData>();
+            JiggleExport.Collect(character.transform, chains, colliders, message => Debug.LogWarning("[Jiggle] " + message, character));
+            if (chains.Count == 0 && colliders.Count == 0) return null;
+            if (!toe)
+            {
+                Debug.LogWarning($"[Jiggle] '{character.name}' has {chains.Count} Jiggle Chain and {colliders.Count} Jiggle Collider components: they are exported for the Toe target only; the Rbfx export leaves them out.", character);
+                return null;
+            }
+            Debug.Log($"[BatchExport] jiggle: {chains.Count} chains, {colliders.Count} colliders");
+            return JiggleExport.ToJson(chains, colliders, "  ");
+        }
+
+        /// <summary>
+        /// The <c>cloth</c> section of the character manifest: the Magica Cloth 2 components on the prefab, read by reflection (see <see cref="ClothExport"/>), for the Toe target. The Rbfx
+        /// target leaves them out with one warning. Null when there are none.
+        /// </summary>
+        private static string ClothSection(GameObject character, bool toe)
+        {
+            var section = ClothExport.Collect(character.transform, message => Debug.LogWarning("[Cloth] " + message, character));
+            if (section == null) return null;
+            if (!toe)
+            {
+                Debug.LogWarning($"[Cloth] '{character.name}' has Magica Cloth 2 components: they are exported for the Toe target only; the Rbfx export leaves them out.", character);
+                return null;
+            }
+            Debug.Log($"[BatchExport] cloth: {section["cloths"].Count()} cloths, {section["colliders"].Count()} colliders");
+            return ClothExport.ToJson(section, "  ");
+        }
+
         private static void WriteManifest(ExportSettings settings, string name, List<ModelEntry> models,
-            List<(string Name, string Path)> animations, string rootBone, Dictionary<string, string> humanBones, List<string> normalized)
+            List<(string Name, string Path)> animations, string rootBone, Dictionary<string, string> humanBones, List<string> normalized, string jiggle = null, string cloth = null)
         {
             string Q(string s) => "\"" + (s ?? string.Empty).Replace("\\", "/").Replace("\"", "\\\"") + "\"";
             var json = new StringBuilder();
@@ -475,6 +515,8 @@ namespace UnityToRebelFork.Editor
             json.AppendLine($"  \"name\": {Q(name)},");
             json.AppendLine($"  \"rootBone\": {Q(rootBone)},");
             if (humanBones != null) json.AppendLine("  \"humanBones\": " + HumanoidMapExporter.ToJson(humanBones, "  ") + ",");
+            if (jiggle != null) json.AppendLine("  \"jiggle\": " + jiggle + ",");
+            if (cloth != null) json.AppendLine("  \"cloth\": " + cloth + ",");
             json.AppendLine("  \"models\": [");
             for (int i = 0; i < models.Count; i++)
             {

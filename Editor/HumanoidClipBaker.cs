@@ -11,7 +11,8 @@ namespace UnityToRebelFork.Editor
     /// <summary>
     /// Turns humanoid animation clips (muscle curves, retargetable) into rbfx animations of one character's bones by
     /// sampling the clip on an instance of the character, frame by frame, and recording the local transform of every
-    /// bone of its skinned meshes. The result plays on that character's exported skeleton.
+    /// bone of its skinned meshes. The result plays on that character's exported skeleton. The placement of the root node at the first frame (what a humanoid clip
+    /// puts the root motion at when it starts) is not baked: frame 0 of the top-level bones is the bind pose, and only the motion after it is kept.
     /// </summary>
     public static class HumanoidClipBaker
     {
@@ -61,7 +62,7 @@ namespace UnityToRebelFork.Editor
                 var sampleTarget = animator != null ? animator.gameObject : instance;
                 // The space of the skinned mesh before the clip moves anything: the exported model has its bones in it, so whatever lies above the
                 // top-level bones (a biped's root dummy, the armature of a Blender file) is part of them, in the clip as in the bind pose.
-                var meshSpace = instance.GetComponentInChildren<SkinnedMeshRenderer>(true)?.transform.worldToLocalMatrix ?? Matrix4x4.identity;
+                var meshSpace = MeshSpace(instance);
 
                 var bones = CollectBones(instance);
                 float frameRate = clip.frameRate > 0f ? clip.frameRate : 30f;
@@ -76,6 +77,14 @@ namespace UnityToRebelFork.Editor
                 // them; clips without root motion come out as the bone's transform in the bind pose's space.
                 var topLevel = bones.Where(b => b.parent == null || !bones.Contains(b.parent)).ToList();
                 var reference = new Dictionary<Transform, Matrix4x4>();
+                // A humanoid clip places the avatar's root node at the root motion of its first frame (the take's own body-centre height, a start offset sideways), even when it does not
+                // travel: that start placement is not part of the motion and would carry the whole character off the ground. The top-level bones are therefore recorded as the motion
+                // since the first frame applied to the bind pose (frame 0 is the bind pose); a clip that really travels or turns keeps that. Generic clips are sampled as they are.
+                var bindWorld = new Dictionary<Transform, Matrix4x4>();
+                var firstWorldInverse = new Dictionary<Transform, Matrix4x4>();
+                if (!generic)
+                    foreach (var bone in topLevel)
+                        bindWorld[bone] = bone.localToWorldMatrix;
                 AnimationMode.StartAnimationMode();
                 try
                 {
@@ -87,13 +96,18 @@ namespace UnityToRebelFork.Editor
                         if (reference.Count == 0)
                         {
                             foreach (var bone in topLevel)
+                            {
                                 reference[bone] = meshSpace;
+                                if (!generic) firstWorldInverse[bone] = bone.localToWorldMatrix.inverse;
+                            }
                         }
                         foreach (var bone in bones)
                         {
                             if (reference.TryGetValue(bone, out var toStart))
                             {
-                                var local = toStart * bone.localToWorldMatrix;
+                                var world = bone.localToWorldMatrix;
+                                if (!generic) world = world * firstWorldInverse[bone] * bindWorld[bone]; // The motion since the first frame, on the bind pose.
+                                var local = toStart * world;
                                 samples[bone].Add((t, local.GetColumn(3), local.rotation, generic ? local.lossyScale : bone.localScale));
                             }
                             else
@@ -137,6 +151,29 @@ namespace UnityToRebelFork.Editor
             {
                 UnityEngine.Object.DestroyImmediate(instance);
             }
+        }
+
+        /// <summary>
+        /// The space the clip's top-level bones are recorded in: that of the skinned mesh whose transform is nearest to the rig's origin. A character made of parts has one skinned mesh per
+        /// part, and a part's object may be placed away from the others (the blouse of the Vampire Girl is 1.07 m below the origin): the first mesh found must not decide, or every clip
+        /// would carry that offset (the character would float). The parts' models share one skeleton; the ones at the origin are what the skeleton's bind pose is written in.
+        /// </summary>
+        private static Matrix4x4 MeshSpace(GameObject instance)
+        {
+            var best = Matrix4x4.identity;
+            float bestDistance = float.MaxValue;
+            foreach (var skin in instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                var space = skin.transform.worldToLocalMatrix;
+                // How far the mesh's transform is from the rig's origin: its offset plus how much it is turned.
+                float distance = ((Vector3)space.GetColumn(3)).magnitude + Quaternion.Angle(Quaternion.identity, space.rotation) * 0.01f;
+                if (distance < bestDistance - 1e-6f)
+                {
+                    bestDistance = distance;
+                    best = space;
+                }
+            }
+            return best;
         }
 
         /// <summary>The bones of every skinned mesh under the rig, parents first, without duplicates.</summary>
