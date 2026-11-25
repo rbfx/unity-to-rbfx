@@ -16,6 +16,9 @@ namespace UnityToRebelFork.Editor
 
         public const uint Magic2 = 0x32444d55;
 
+        /// <summary>Bone matrices the skinning shaders of the game take (rbfx's default): a model with more bones gets a bone mapping per geometry.</summary>
+        public const int MaxGpuBones = 128;
+
         public ModelBuilder(ExportSettings settings)
         {
             this.settings = settings;
@@ -56,13 +59,15 @@ namespace UnityToRebelFork.Editor
             var indexBuffer = new List<int>(1024);
             writer.Write(Magic2);
             var positions = mesh.Vertices;
+            var boneMapping = BoneMapping(mesh.BoneWeights, mesh.BonesCount, out var mappingWarning);
+            if (mappingWarning != null) Debug.LogWarning("[ModelBuilder] " + mappingWarning);
             {
                 // Vertex buffer
                 uint numVertexBuffers = 1;
                 writer.Write(numVertexBuffers);
                 for (var vbIndex = 0; vbIndex < numVertexBuffers; ++vbIndex)
                 {
-                    var elements = WriteVertexBufferHeader(writer, mesh, positions);
+                    var elements = WriteVertexBufferHeader(writer, mesh, positions, boneMapping);
 
                     var morphableVertexRangeStartIndex = 0;
                     var morphableVertexCount = 0;
@@ -131,8 +136,10 @@ namespace UnityToRebelFork.Editor
             var indexOffset = 0;
             for (var subMeshIndex = 0; subMeshIndex < mesh.SubMeshCount; ++subMeshIndex)
             {
-                var numberOfBoneMappingEntries = 0;
-                writer.Write(numberOfBoneMappingEntries);
+                // Every geometry draws from the one vertex buffer, so they share its mapping.
+                writer.Write(boneMapping?.Length ?? 0);
+                if (boneMapping != null)
+                    foreach (var bone in boneMapping) writer.Write((uint)bone);
 
                 var geomtery = mesh.GetGeomtery(subMeshIndex);
 
@@ -382,7 +389,43 @@ namespace UnityToRebelFork.Editor
             return bones;
         }
 
-        private List<MeshStreamWriter> WriteVertexBufferHeader(BinaryWriter writer, IMeshSource mesh, IList<Vector3> positions)
+        /// <summary>
+        /// The bones the vertices use, in the order of the indices the vertex buffer gets, or null when the vertices can name the bones of the
+        /// skeleton directly. A blend index is a byte and the GPU skins at most <see cref="MaxGpuBones"/> bones a draw: a model with more bones
+        /// (UnityChan's 321) would have its bones past 255 wrap onto others (the right breast and the skirt on the legs) and be skinned on the CPU.
+        /// With the mapping the vertex buffer has indices into it and each geometry the list of the skeleton's bones they stand for.
+        /// </summary>
+        public static int[] BoneMapping(BoneWeight[] weights, int boneCount, out string warning)
+        {
+            warning = null;
+            if (weights == null || weights.Length == 0 || boneCount <= MaxGpuBones) return null;
+            var used = new SortedSet<int>();
+            foreach (var w in weights)
+            {
+                if (w.weight0 > 0f) used.Add(w.boneIndex0);
+                if (w.weight1 > 0f) used.Add(w.boneIndex1);
+                if (w.weight2 > 0f) used.Add(w.boneIndex2);
+                if (w.weight3 > 0f) used.Add(w.boneIndex3);
+            }
+            if (used.Count == 0) used.Add(0);
+            if (used.Count > 256)
+            {
+                if (boneCount > 256)
+                    warning = $"The mesh's vertices use {used.Count} bones: more than a blend index can name; the bones past 255 take the place of others.";
+                return null;
+            }
+            return used.ToArray();
+        }
+
+        /// <summary>The index a vertex buffer with <paramref name="mapping"/> has for bone <paramref name="bone"/> of the skeleton (0 for a bone it does not use: its weight is 0).</summary>
+        public static int LocalBoneIndex(int[] mapping, int bone)
+        {
+            if (mapping == null) return bone;
+            int local = Array.BinarySearch(mapping, bone);
+            return local >= 0 ? local : 0;
+        }
+
+        private List<MeshStreamWriter> WriteVertexBufferHeader(BinaryWriter writer, IMeshSource mesh, IList<Vector3> positions, int[] boneMapping)
         {
             var normals = mesh.Normals;
             var colors = settings.VertexColors ? mesh.Colors : Array.Empty<Color32>();
@@ -416,8 +459,8 @@ namespace UnityToRebelFork.Editor
                 var weights = new Vector4[boneWeights.Length];
                 for (var i = 0; i < boneWeights.Length; ++i)
                 {
-                    indices[i] = new Vector4(boneWeights[i].boneIndex0, boneWeights[i].boneIndex1,
-                        boneWeights[i].boneIndex2, boneWeights[i].boneIndex3);
+                    indices[i] = new Vector4(LocalBoneIndex(boneMapping, boneWeights[i].boneIndex0), LocalBoneIndex(boneMapping, boneWeights[i].boneIndex1),
+                        LocalBoneIndex(boneMapping, boneWeights[i].boneIndex2), LocalBoneIndex(boneMapping, boneWeights[i].boneIndex3));
                     weights[i] = new Vector4(boneWeights[i].weight0, boneWeights[i].weight1,
                         boneWeights[i].weight2, boneWeights[i].weight3);
                 }

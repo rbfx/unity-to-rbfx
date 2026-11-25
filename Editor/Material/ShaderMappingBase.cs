@@ -49,7 +49,6 @@ namespace UnityToRebelFork.Editor
             "Standard",
             "Legacy Shaders/",
             "Mobile/",
-            "RBFX/",
         };
 
         /// <summary>True for the shaders of Unity (and of this package) that do not use the colour of the vertices, whatever the mesh holds: the material of rbfx must not either.</summary>

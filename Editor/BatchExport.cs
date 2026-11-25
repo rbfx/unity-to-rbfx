@@ -112,7 +112,9 @@ namespace UnityToRebelFork.Editor
 
             // The meshes the character shows (Synty prefabs carry every variant of a pack, with all but one switched off).
             var models = new List<ModelEntry>();
+            var partModels = new Dictionary<UnityEngine.Renderer, string>();
             string rootBone = null;
+            string modelTransform = null;
             foreach (var skin in character != null ? character.GetComponentsInChildren<SkinnedMeshRenderer>(true) : Array.Empty<SkinnedMeshRenderer>())
             {
                 if (!skin.enabled || !IsActive(skin.transform, character.transform) || skin.sharedMesh == null) continue;
@@ -122,7 +124,9 @@ namespace UnityToRebelFork.Editor
                 var albedo = skin.sharedMaterials.Select(m => ExportTexture(orchestrator, m, AlbedoNames)).ToList();
                 var normal = skin.sharedMaterials.Select(m => ExportTexture(orchestrator, m, NormalNames)).ToList();
                 models.Add(new ModelEntry { Model = model, Materials = materials, Albedo = albedo, Normal = normal });
+                partModels[skin] = model;
                 rootBone ??= skin.rootBone != null ? skin.rootBone.name : null;
+                modelTransform ??= ModelTransformJson(skin, character.transform);
                 Debug.Log($"[BatchExport] model {skin.name} -> {model}");
             }
 
@@ -222,8 +226,8 @@ namespace UnityToRebelFork.Editor
             if (toe && context.AudioToEncode.Count > 0)
                 EncodeAudio(settings, context.AudioToEncode, ref failures);
             string jiggle = character != null ? JiggleSection(character, toe) : null;
-            string cloth = character != null ? ClothSection(character, toe) : null;
-            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized, jiggle, cloth);
+            string cloth = character != null ? ClothSection(character, toe, partModels) : null;
+            if (character != null) WriteManifest(settings, character.name, models, animations, rootBone, humanBones, normalized, jiggle, cloth, modelTransform);
             if (toe && !string.IsNullOrEmpty(effectList)) WriteEffectReport(settings, context, System.IO.Path.GetFileNameWithoutExtension(effectList));
             bool missing = (character != null && models.Count == 0) || missingProps > 0 || missingEffects > 0 || missingSprites > 0 || missingAudio > 0;
             return failures == 0 && !missing ? 0 : 1;
@@ -474,11 +478,35 @@ namespace UnityToRebelFork.Editor
         /// The <c>jiggle</c> section of the character manifest: the Jiggle Chain and Jiggle Collider components on the prefab (<see cref="JiggleExport"/>), for the Toe target. The Rbfx
         /// target leaves them out with one warning. Null when there are none.
         /// </summary>
+        /// <summary>
+        /// Where the space of a skinned mesh stands in the world while the bones are in the bind pose (bone.localToWorld * bindpose), as position, rotation (a quaternion) and scale: a model
+        /// exported from an FBX whose root is turned and scaled (z up, in centimetres) has its vertices and bones in that space, so the game puts its model node there. Null when it is the
+        /// identity (the model is in metres and Y up already) or cannot be written as position, rotation and scale (it mirrors).
+        /// </summary>
+        private static string ModelTransformJson(SkinnedMeshRenderer skin, Transform character)
+        {
+            // Relative to the character: a prefab whose root is turned (the Magica example faces the camera of its demo scene) must not turn the model in the game.
+            var m = character.worldToLocalMatrix * ClothExport.MeshToWorld(skin);
+            var position = (Vector3)m.GetColumn(3);
+            var rotation = m.rotation;
+            var scale = m.lossyScale;
+            if (m.determinant < 0f)
+            {
+                Debug.LogWarning($"[BatchExport] The mesh space of '{skin.name}' is mirrored in the world: it cannot be given to the game as a transform.", skin);
+                return null;
+            }
+            bool identity = position.sqrMagnitude < 1e-8f && Quaternion.Angle(rotation, Quaternion.identity) < 0.01f && (scale - Vector3.one).sqrMagnitude < 1e-8f;
+            if (identity) return null;
+            string N(float v) => v.ToString("0.#######", CultureInfo.InvariantCulture);
+            return $"{{ \"position\": [{N(position.x)}, {N(position.y)}, {N(position.z)}], \"rotation\": [{N(rotation.x)}, {N(rotation.y)}, {N(rotation.z)}, {N(rotation.w)}], \"scale\": [{N(scale.x)}, {N(scale.y)}, {N(scale.z)}] }}";
+        }
+
         private static string JiggleSection(GameObject character, bool toe)
         {
             var chains = new List<JiggleChainData>();
             var colliders = new List<JiggleColliderData>();
             JiggleExport.Collect(character.transform, chains, colliders, message => Debug.LogWarning("[Jiggle] " + message, character));
+            ClothExport.CollectSprings(character.transform, chains, colliders, message => Debug.LogWarning("[Spring] " + message, character));
             if (chains.Count == 0 && colliders.Count == 0) return null;
             if (!toe)
             {
@@ -493,9 +521,9 @@ namespace UnityToRebelFork.Editor
         /// The <c>cloth</c> section of the character manifest: the Magica Cloth 2 components on the prefab, read by reflection (see <see cref="ClothExport"/>), for the Toe target. The Rbfx
         /// target leaves them out with one warning. Null when there are none.
         /// </summary>
-        private static string ClothSection(GameObject character, bool toe)
+        private static string ClothSection(GameObject character, bool toe, IReadOnlyDictionary<UnityEngine.Renderer, string> partModels)
         {
-            var section = ClothExport.Collect(character.transform, message => Debug.LogWarning("[Cloth] " + message, character));
+            var section = ClothExport.Collect(character.transform, message => Debug.LogWarning("[Cloth] " + message, character), partModels);
             if (section == null) return null;
             if (!toe)
             {
@@ -507,7 +535,7 @@ namespace UnityToRebelFork.Editor
         }
 
         private static void WriteManifest(ExportSettings settings, string name, List<ModelEntry> models,
-            List<(string Name, string Path)> animations, string rootBone, Dictionary<string, string> humanBones, List<string> normalized, string jiggle = null, string cloth = null)
+            List<(string Name, string Path)> animations, string rootBone, Dictionary<string, string> humanBones, List<string> normalized, string jiggle = null, string cloth = null, string modelTransform = null)
         {
             string Q(string s) => "\"" + (s ?? string.Empty).Replace("\\", "/").Replace("\"", "\\\"") + "\"";
             var json = new StringBuilder();
@@ -515,6 +543,7 @@ namespace UnityToRebelFork.Editor
             json.AppendLine($"  \"name\": {Q(name)},");
             json.AppendLine($"  \"rootBone\": {Q(rootBone)},");
             if (humanBones != null) json.AppendLine("  \"humanBones\": " + HumanoidMapExporter.ToJson(humanBones, "  ") + ",");
+            if (modelTransform != null) json.AppendLine("  \"modelTransform\": " + modelTransform + ",");
             if (jiggle != null) json.AppendLine("  \"jiggle\": " + jiggle + ",");
             if (cloth != null) json.AppendLine("  \"cloth\": " + cloth + ",");
             json.AppendLine("  \"models\": [");

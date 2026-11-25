@@ -68,10 +68,21 @@ namespace MagicaFakes
     }
 
     [Serializable]
+    public class SpringData
+    {
+        public bool useSpring = true;
+        public float springPower = 0.04f;
+        public float limitDistance = 0.1f;
+        public float normalLimitRatio = 1f;
+        public float springNoise;
+    }
+
+    [Serializable]
     public class ColliderCollisionData
     {
         public int mode = 1;
         public float friction = 0.05f;
+        public CurveSerializeData limitDistance = new CurveSerializeData { value = 0.05f };
         public List<ColliderComponent> colliderList = new List<ColliderComponent>();
     }
 
@@ -79,6 +90,7 @@ namespace MagicaFakes
     public class ClothSerializeData
     {
         public int clothType = 1;
+        public List<Renderer> sourceRenderers = new List<Renderer>();
         public List<Transform> rootBones = new List<Transform>();
         public int connectionMode;
         public float rotationalInterpolation = 0.5f;
@@ -99,6 +111,8 @@ namespace MagicaFakes
         public AngleLimitData angleLimitConstraint = new AngleLimitData();
         public MotionData motionConstraint = new MotionData();
         public ColliderCollisionData colliderCollisionConstraint = new ColliderCollisionData();
+        public SpringData springConstraint = new SpringData();
+        public int normalAxis;
     }
 
     [Serializable] public struct VertexAttribute { public byte Value; }

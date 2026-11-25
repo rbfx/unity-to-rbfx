@@ -40,12 +40,17 @@ namespace UnityToRebelFork.Editor
 
         private void ExportDefaultMap(UnityEngine.Texture asset, TextureImporter textureImporter)
         {
+            // A colour texture is sampled as linear in a linear project and written back as the gamma values it was made of. A texture that is not sRGB (a normal map, a mask, roughness / metallic
+            // / occlusion) is sampled as it is: its values are written as they are, not run through the gamma curve (which would change them).
+            bool data = textureImporter != null && !textureImporter.sRGBTexture;
+            float gammaInput = data ? 0.0f : (PlayerSettings.colorSpace == UnityEngine.ColorSpace.Linear ? 0.0f : 1.0f);
+            float gammaOutput = data ? 0.0f : 1.0f;
             new TextureProcessor().ProcessAndSaveTexture(asset,
                 "Hidden/UnityToRebelFork/Copy", Settings.ResolveResourceFileName(EvaluateResourcePath(asset)),
                 hasAlpha: textureImporter?.GetAutomaticFormat("Standalone") != TextureImporterFormat.DXT1, shaderArgs: new Dictionary<string, float>
                 {
-                    {"_GammaInput",( PlayerSettings.colorSpace == UnityEngine.ColorSpace.Linear)?0.0f:1.0f},
-                    {"_GammaOutput",1.0f},
+                    {"_GammaInput", gammaInput},
+                    {"_GammaOutput", gammaOutput},
                 });
         }
 

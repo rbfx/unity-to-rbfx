@@ -211,6 +211,74 @@ namespace UnityToRebelFork
             StringAssert.Contains("Mesh Cloth", warnings[0]);
         }
 
+        /// <summary>A Mesh Cloth on a skirt renderer, with a proxy of three vertices (one fixed, one moving, one invalid) kept as selection data in the space of the cloth component.</summary>
+        private (GameObject Root, MeshRenderer Renderer, GameObject Host, MagicaCloth Cloth) MeshClothed()
+        {
+            var root = Make("Girl");
+            var skirt = Make("Skirt", root.transform, new Vector3(0f, 1f, 0f));
+            var renderer = skirt.AddComponent<MeshRenderer>();
+            var host = Make("Cloth", root.transform, new Vector3(0f, 0.5f, 0f));
+            var cloth = host.AddComponent<MagicaCloth>();
+            cloth.SerializeData.clothType = 0;
+            cloth.SerializeData.sourceRenderers = new List<UnityEngine.Renderer> { renderer };
+            var selection = cloth.serializeData2.selectionData;
+            selection.positions = new[] { new Vector3(0f, 0f, 0f), new Vector3(0.1f, -0.2f, 0f), new Vector3(0.2f, -0.4f, 0f) };
+            selection.attributes = new[] { new VertexAttribute { Value = 1 }, new VertexAttribute { Value = 2 }, new VertexAttribute { Value = 0 } };
+            return (root, renderer, host, cloth);
+        }
+
+        [Test]
+        public void AMeshCloth_IsWrittenWithItsPartsAndItsProxyInTheSpaceOfTheRenderer()
+        {
+            var (root, renderer, host, _) = MeshClothed();
+            var parts = new Dictionary<UnityEngine.Renderer, string> { { renderer, "Characters/Skirt.mdl" } };
+            var warnings = new List<string>();
+
+            var json = ClothExport.Collect(root.transform, warnings.Add, parts);
+
+            Assert.AreEqual(0, warnings.Count);
+            var cloth = json["cloths"][0];
+            Assert.AreEqual("MeshCloth", (string)cloth["type"]);
+            CollectionAssert.AreEqual(new[] { "Characters/Skirt.mdl" }, cloth["parts"].Select(t => (string)t).ToArray());
+            CollectionAssert.AreEqual(new[] { 1, 2, 4 }, cloth["proxy"]["attributes"].Select(t => (int)t).ToArray());
+            var positions = cloth["proxy"]["positions"];
+            Assert.AreEqual(3, positions.Count());
+            // The cloth host is 0.5 up and the renderer 1 up: a point at the host origin is 0.5 below the renderer origin.
+            Assert.AreEqual(-0.5f, (float)positions[0][1], 1e-4f);
+            Assert.AreEqual(-0.9f, (float)positions[2][1], 1e-4f);
+            Assert.AreEqual(0.2f, (float)positions[2][0], 1e-4f);
+        }
+
+        [Test]
+        public void AMeshCloth_KeepsTheParametersOfABoneCloth_AndNeedsNoRoots()
+        {
+            var (root, renderer, _, cloth) = MeshClothed();
+            cloth.SerializeData.gravity = 3f;
+            var parts = new Dictionary<UnityEngine.Renderer, string> { { renderer, "Characters/Skirt.mdl" } };
+
+            var json = ClothExport.Collect(root.transform, _ => { }, parts)["cloths"][0];
+
+            Assert.AreEqual(3f, (float)json["gravity"], 1e-4f);
+            Assert.IsNotNull(json["inertia"]);
+            Assert.IsNotNull(json["collision"]);
+        }
+
+        [Test]
+        public void AMeshCloth_WhoseRendererWasNotExported_OrWithoutSelectionData_IsLeftOutWithAWarning()
+        {
+            var (root, renderer, _, cloth) = MeshClothed();
+            var warnings = new List<string>();
+
+            Assert.IsNull(ClothExport.Collect(root.transform, warnings.Add, new Dictionary<UnityEngine.Renderer, string>()));
+            StringAssert.Contains("not among the exported models", warnings[0]);
+
+            warnings.Clear();
+            cloth.serializeData2.selectionData.positions = new Vector3[0];
+            cloth.serializeData2.selectionData.attributes = new VertexAttribute[0];
+            Assert.IsNull(ClothExport.Collect(root.transform, warnings.Add, new Dictionary<UnityEngine.Renderer, string> { { renderer, "Characters/Skirt.mdl" } }));
+            StringAssert.Contains("no selection data", warnings[0]);
+        }
+
         [Test]
         public void ADisabledCloth_IsLeftOut()
         {
@@ -246,6 +314,62 @@ namespace UnityToRebelFork
             var skirt = Collect(root)["cloths"][0];
             Assert.IsNull(skirt["fixed"]);
             Assert.IsNull(skirt["invalid"]);
+        }
+
+        /// <summary>A chest with one breast bone (and its tip) carrying a Bone Spring.</summary>
+        private (GameObject Root, MagicaCloth Spring) Sprung()
+        {
+            var root = Make("Chan");
+            var chest = Make("chest", root.transform, new Vector3(0f, 1.3f, 0f));
+            var bust = Make("bust_L", chest.transform, new Vector3(0.05f, 0f, 0.1f));
+            Make("bust_L_tip", bust.transform, new Vector3(0f, 0f, 0.05f));
+            var spring = AddCloth(chest, new List<Transform> { bust.transform }, 0);
+            spring.SerializeData.clothType = 10;
+            spring.SerializeData.springConstraint.springPower = 0.0471f;
+            spring.SerializeData.springConstraint.limitDistance = 0.02f;
+            spring.SerializeData.springConstraint.normalLimitRatio = 0.5f;
+            spring.SerializeData.normalAxis = 2;
+            return (root, spring);
+        }
+
+        [Test]
+        public void ABoneSpring_IsWrittenAsSpringChainsOfTheJiggleSection_NotAsACloth()
+        {
+            var (root, _) = Sprung();
+            var warnings = new List<string>();
+
+            var section = Collect(root, warnings);
+            Assert.IsTrue(section == null || ((JArray)section["cloths"]).Count == 0, "no cloth is written for the spring");
+
+            var chains = new List<JiggleChainData>();
+            var colliders = new List<JiggleColliderData>();
+            ClothExport.CollectSprings(root.transform, chains, colliders, warnings.Add);
+            Assert.AreEqual(1, chains.Count);
+            CollectionAssert.AreEqual(new[] { "bust_L", "bust_L_tip" }, chains[0].Bones);
+            Assert.AreEqual(0.0471f, chains[0].SpringPower, 1e-6f);
+            Assert.AreEqual(0.02f, chains[0].LimitDistance, 1e-6f);
+            Assert.AreEqual(0.5f, chains[0].NormalLimitRatio, 1e-6f);
+            Assert.AreEqual("Z", chains[0].NormalAxis);
+            Assert.AreEqual(5f / 9.81f, chains[0].Gravity, 1e-4f);
+            CollectionAssert.IsEmpty(warnings);
+
+            var json = JObject.Parse("{ \"jiggle\": " + JiggleExport.ToJson(chains, colliders, string.Empty) + " }");
+            var chain = json["jiggle"]["chains"][0];
+            Assert.AreEqual(0.0471f, (float)chain["springPower"], 1e-6f);
+            Assert.AreEqual("Z", (string)chain["normalAxis"]);
+        }
+
+        [Test]
+        public void ABoneSpringWithoutCollision_CollidesWithNothing_AndAPlainChainHasNoSpring()
+        {
+            var (root, spring) = Sprung();
+            spring.SerializeData.colliderCollisionConstraint.mode = 0;
+            var chains = new List<JiggleChainData>();
+            ClothExport.CollectSprings(root.transform, chains, new List<JiggleColliderData>(), _ => { });
+            Assert.AreEqual(new[] { "-" }, chains[0].CollisionBones.ToArray());
+
+            var plain = new JiggleChainData { Bones = { "hair" }, Stiffness = 0.3f };
+            StringAssert.DoesNotContain("springPower", JiggleExport.ToJson(new List<JiggleChainData> { plain }, new List<JiggleColliderData>(), string.Empty));
         }
 
         [Test]

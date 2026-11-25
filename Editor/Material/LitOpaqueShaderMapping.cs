@@ -13,7 +13,7 @@ namespace UnityToRebelFork.Editor
 
         public bool CanMap(UnityEngine.Shader shader)
         {
-            if (shader.name == Shaders.RBFX.LitOpaqueShaderAdapter.ShaderName)
+            if (Shaders.RBFX.LitOpaqueShaderAdapter.IsLitShader(shader.name))
                 return true;
             return false;
         }
@@ -26,6 +26,12 @@ namespace UnityToRebelFork.Editor
 
             MapCommonParameters(material, model, shaderArgs._BumpMap != null);
             MapDefaultTechnique(material, model);
+            // The checkbox of the material decides (the colour of the vertices multiplies the albedo in rbfx unless this is told to ignore it).
+            if (shaderArgs._IgnoreVertexColor)
+            {
+                model.PSDefines.Add("IGNOREVERTEXCOLOR");
+                model.VSDefines.Add("IGNOREVERTEXCOLOR");
+            }
 
             model.MatDiffColor = shaderArgs._Color;
             model.MatEmissiveColor = (Vector4)shaderArgs._EmissionColor;

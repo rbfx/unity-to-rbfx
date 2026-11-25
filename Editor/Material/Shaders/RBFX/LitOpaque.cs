@@ -4,6 +4,18 @@ namespace UnityToRebelFork.Editor.Shaders.RBFX
     {
         public static readonly string ShaderName = "RBFX/LitOpaque";
 
+        /// <summary>The Universal Render Pipeline version of the shader: the same properties.</summary>
+        public static readonly string UrpShaderName = "RBFX/URP/LitOpaque";
+
+        /// <summary>The alpha blended variants (the same properties, no cut-off): glass, blood, flames.</summary>
+        public static readonly string TransparentShaderName = "RBFX/LitTransparent";
+        public static readonly string UrpTransparentShaderName = "RBFX/URP/LitTransparent";
+
+        public static bool IsLitShader(string name)
+        {
+            return name == ShaderName || name == UrpShaderName || name == TransparentShaderName || name == UrpTransparentShaderName;
+        }
+
         UnityEngine.Material material;
 
         public LitOpaqueShaderAdapter(UnityEngine.Material material)
@@ -56,9 +68,15 @@ namespace UnityToRebelFork.Editor.Shaders.RBFX
             get { return material.GetFloat("_Roughness"); }
         }
 
+        /// <summary>The checkbox of the material: the colour of the vertices is not multiplied into the albedo (IGNOREVERTEXCOLOR in rbfx). Off for a material without the property.</summary>
+        public bool _IgnoreVertexColor
+        {
+            get { return material.HasProperty("_IgnoreVertexColor") && material.GetFloat("_IgnoreVertexColor") > 0.5f; }
+        }
+
         public float _Cutoff
         {
-            get { return material.GetFloat("_Cutoff"); }
+            get { return material.HasProperty("_Cutoff") ? material.GetFloat("_Cutoff") : 0.5f; }
         }
     }
 }

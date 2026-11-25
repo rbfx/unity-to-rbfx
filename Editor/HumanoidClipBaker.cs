@@ -108,7 +108,8 @@ namespace UnityToRebelFork.Editor
                                 var world = bone.localToWorldMatrix;
                                 if (!generic) world = world * firstWorldInverse[bone] * bindWorld[bone]; // The motion since the first frame, on the bind pose.
                                 var local = toStart * world;
-                                samples[bone].Add((t, local.GetColumn(3), local.rotation, generic ? local.lossyScale : bone.localScale));
+                                // The scale is the one of the matrix, not bone.localScale: what lies above the top-level bone (an armature scaled 0.01 over bones in metres) is part of it, as it is of the position.
+                                samples[bone].Add((t, local.GetColumn(3), local.rotation, local.lossyScale));
                             }
                             else
                             {

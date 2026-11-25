@@ -17,6 +17,17 @@ namespace UnityToRebelFork.Editor
         public float MaxAngle;
         public float TailLength;
         public JiggleTailDirection TailDirection;
+
+        // A bone spring (Magica Cloth 2's BoneSpring): the root moves too, held by a spring. Written only when there is one.
+        public float SpringPower;
+        public float LimitDistance = 0.05f;
+        public float NormalLimitRatio = 1f;
+        public float SpringNoise;
+        public string NormalAxis = "Y";
+        public List<string> CollisionBones = new List<string>();
+        public float PushLimit;
+
+        public bool IsSpring => SpringPower > 0f || CollisionBones.Count > 0 || PushLimit > 0f;
     }
 
     /// <summary>A <see cref="JiggleCollider"/> as the manifest holds it, in the space of the bone with the bone's scale baked in.</summary>
@@ -121,7 +132,11 @@ namespace UnityToRebelFork.Editor
             {
                 var c = chains[i];
                 json.Append($"{indent}    {{ \"bones\": [{string.Join(", ", c.Bones.ConvertAll(Q))}], \"stiffness\": {F(c.Stiffness)}, \"damping\": {F(c.Damping)}, \"gravity\": {F(c.Gravity)}, " +
-                            $"\"radius\": {F(c.Radius)}, \"maxAngle\": {F(c.MaxAngle)}, \"tailLength\": {F(c.TailLength)}, \"tailDirection\": {Q(c.TailDirection.ToString())} }}");
+                            $"\"radius\": {F(c.Radius)}, \"maxAngle\": {F(c.MaxAngle)}, \"tailLength\": {F(c.TailLength)}, \"tailDirection\": {Q(c.TailDirection.ToString())}");
+                if (c.IsSpring)
+                    json.Append($", \"springPower\": {F(c.SpringPower)}, \"limitDistance\": {F(c.LimitDistance)}, \"normalLimitRatio\": {F(c.NormalLimitRatio)}, \"springNoise\": {F(c.SpringNoise)}, " +
+                                $"\"normalAxis\": {Q(c.NormalAxis)}, \"collisionBones\": [{string.Join(", ", c.CollisionBones.ConvertAll(Q))}], \"pushLimit\": {F(c.PushLimit)}");
+                json.Append(" }");
                 json.AppendLine(i + 1 < chains.Count ? "," : string.Empty);
             }
             json.AppendLine($"{indent}  ],");
